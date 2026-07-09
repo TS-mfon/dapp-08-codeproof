@@ -29,4 +29,4 @@ export const SYSTEM_CONTRACTS = {
 };
 
 export const DEFAULT_REGISTRY_ADDRESS = (process.env.NEXT_PUBLIC_REGISTRY_ADDRESS || 
-  "0x188c30510Ec32E6F00620b4f1c2E63925aA39ea2") as `0x${string}`; // Default to TweetRegistry or environment
+  "0x28696a881D57BC3Ed88AbE082a82934d8b82E893") as `0x${string}`;
