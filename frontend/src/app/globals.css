@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+:root {
+  --background: #030014;
+  --foreground: #f8fafc;
+  --card-bg: rgba(15, 10, 32, 0.4);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --primary: #9d4edd;
+  --primary-glow: rgba(157, 78, 221, 0.15);
+  --secondary: #3f37c9;
+  --accent: #4cc9f0;
+  --accent-glow: rgba(76, 201, 240, 0.15);
+  --muted: #64748b;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+}
+
+body {
+  background: radial-gradient(circle at 50% 0%, #120b36 0%, var(--background) 70%);
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Glassmorphism custom classes */
+.glass {
+  background: var(--card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-hover:hover {
+  border-color: rgba(157, 78, 221, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(157, 78, 221, 0.1);
+  transform: translateY(-2px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom glow text and shadows */
+.glow-primary {
+  text-shadow: 0 0 12px rgba(157, 78, 221, 0.6);
+}
+
+.glow-accent {
+  text-shadow: 0 0 12px rgba(76, 201, 240, 0.6);
+}
+
+.glow-box {
+  box-shadow: 0 0 30px var(--primary-glow);
+}
+
+/* Micro-animations */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 0.9; }
+}
+
+.pulse-slow {
+  animation: pulse-slow 3s infinite ease-in-out;
+}
