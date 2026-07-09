@@ -6,7 +6,7 @@ import { encodeFunctionData, keccak256, stringToBytes, type Hex, parseEther } fr
 import { REGISTRY_ABI } from "../../lib/abi";
 import { DEFAULT_REGISTRY_ADDRESS } from "../../lib/ritual";
 import { useAsyncTransaction } from "../../hooks/useAsyncTransaction";
-import { AlertCircle, ArrowLeft, Loader2, Sparkles, Code, Github } from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2, Sparkles, Code, FileCode } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -175,7 +175,7 @@ export default function RequestReviewPage() {
                     : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
                 }`}
               >
-                <Github className="w-3.5 h-3.5" />
+                <FileCode className="w-3.5 h-3.5" />
                 GitHub Link
               </button>
               <button
