@@ -1,86 +1,105 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useAccount, useReadContract, useSendTransaction, usePublicClient } from "wagmi";
-import { encodeFunctionData, keccak256, stringToBytes, type Hex } from "viem";
+import { useAccount, useReadContract, useSendTransaction, useSwitchChain } from "wagmi";
+import { encodeFunctionData, keccak256, stringToBytes, type Hex, parseEther } from "viem";
 import { REGISTRY_ABI } from "../../lib/abi";
-import { DEFAULT_REGISTRY_ADDRESS, SYSTEM_CONTRACTS } from "../../lib/ritual";
+import { DEFAULT_REGISTRY_ADDRESS } from "../../lib/ritual";
 import { useAsyncTransaction } from "../../hooks/useAsyncTransaction";
-import { useSenderLock } from "../../hooks/useSenderLock";
-import { useRitualWallet } from "../../hooks/useRitualWallet";
-import { AlertCircle, FileCode, CheckCircle, ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2, Sparkles, Code, Github } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function RequestReviewPage() {
-  const { isConnected, address } = useAccount();
+  const { isConnected, address, chain } = useAccount();
+  const { switchChain } = useSwitchChain();
   const router = useRouter();
 
-  // Form Inputs
-  const [sourceURI, setSourceURI] = useState("");
-  const [codeHash, setCodeHash] = useState("");
-  const [executor, setExecutor] = useState("0x862bF47f9644e8562cE0Fe12b4deeC4163c064A8"); // default TEE node
-  const [ttl, setTtl] = useState(100);
+  // Mode: "github" | "paste"
+  const [inputMode, setInputMode] = useState<"github" | "paste">("github");
 
-  // Ritual Hooks
-  const { balance, balanceFormatted, deposit, isConfirming: isDepositing, refetchBalance } = useRitualWallet();
-  const { isLocked, message: lockMessage, refetch: refetchLock } = useSenderLock();
+  // Inputs
+  const [sourceURI, setSourceURI] = useState("");
+  const [pastedCode, setPastedCode] = useState("");
+
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Ritual hooks
   const { state, reviewId, error: txError, sendReviewTransaction, reset } = useAsyncTransaction();
   const { sendTransactionAsync } = useSendTransaction();
 
-  // Read fees from contract
+  // Read requestFee from contract (should be 0.01 RITUAL)
   const { data: requestFee } = useReadContract({
     address: DEFAULT_REGISTRY_ADDRESS,
     abi: REGISTRY_ABI,
     functionName: "requestFee",
   });
 
-  const [depositAmount, setDepositAmount] = useState("0.1");
-
-  // If codeHash is empty, compute hash of sourceURI as placeholder
-  const handleAutoHash = () => {
-    if (!sourceURI) return;
-    const computed = keccak256(stringToBytes(sourceURI));
-    setCodeHash(computed);
-  };
-
-  const handleDeposit = async () => {
-    try {
-      await deposit(depositAmount);
-      await refetchBalance();
-    } catch (e) {
-      console.error("Deposit failed", e);
+  // Auto switch chain to Ritual Chain (ID 1979)
+  useEffect(() => {
+    if (isConnected && chain?.id !== 1979) {
+      try {
+        switchChain({ chainId: 1979 });
+      } catch (e) {
+        console.error("Chain switch failed", e);
+      }
     }
-  };
+  }, [isConnected, chain?.id, switchChain]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sourceURI || !codeHash || !executor || !ttl) return;
+    setFormError(null);
 
-    // Prepare bytes32 format for codeHash and address format for executor
-    const formattedHash = codeHash.startsWith("0x") ? (codeHash as Hex) : `0x${codeHash}` as Hex;
-    const formattedExecutor = executor.startsWith("0x") ? (executor as Hex) : `0x${executor}` as Hex;
+    if (chain?.id !== 1979) {
+      setFormError("Please switch your wallet to the Ritual network before submitting.");
+      return;
+    }
 
-    // We MUST bypass simulation using sendTransactionAsync + encodeFunctionData
+    let finalSourceURI = "";
+    let finalCodeHash = "";
+
+    if (inputMode === "github") {
+      if (!sourceURI.trim()) {
+        setFormError("Please enter a valid GitHub Solidity contract link.");
+        return;
+      }
+      finalSourceURI = sourceURI.trim();
+      finalCodeHash = keccak256(stringToBytes(finalSourceURI));
+    } else {
+      if (!pastedCode.trim()) {
+        setFormError("Please paste your Solidity contract code.");
+        return;
+      }
+      finalSourceURI = `pasted://solidity-${Date.now()}`;
+      finalCodeHash = keccak256(stringToBytes(pastedCode));
+    }
+
+    // Default TEE Executor and TTL
+    const defaultExecutor = "0x862bF47f9644e8562cE0Fe12b4deeC4163c064A8" as Hex;
+    const defaultTtl = 100;
+
+    // We must bypass simulation by using encodeFunctionData + sendTransactionAsync
     const data = encodeFunctionData({
       abi: REGISTRY_ABI,
       functionName: "requestCodeReview",
-      args: [formattedHash, sourceURI, formattedExecutor, BigInt(ttl)],
+      args: [finalCodeHash as Hex, finalSourceURI, defaultExecutor, BigInt(defaultTtl)],
     });
+
+    // Total fee is 0.02 RITUAL: 0.01 treasury fee + 0.01 auto-deposit TEE budget
+    const treasuryFee = requestFee ? requestFee : parseEther("0.01");
+    const totalTxValue = treasuryFee + parseEther("0.01");
 
     try {
       await sendReviewTransaction(async () => {
         return await sendTransactionAsync({
           to: DEFAULT_REGISTRY_ADDRESS,
           data,
-          // If we want to deposit extra value directly, we can add it to the tx
-          value: requestFee ? requestFee : BigInt(0),
-          gas: BigInt(2000000), // sufficient gas limit for precompile call
+          value: totalTxValue,
+          gas: BigInt(2000000), // sufficient gas limit for precompile TEE call
         });
       });
-      await refetchLock();
-    } catch (err) {
-      console.error("Review request failed", err);
+    } catch (err: any) {
+      console.error("Review request transaction error", err);
     }
   };
 
@@ -111,8 +130,10 @@ export default function RequestReviewPage() {
     );
   }
 
+  const isWrongChain = chain?.id !== 1979;
+
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="max-w-2xl mx-auto space-y-8">
       {/* Title */}
       <div className="flex items-center gap-4">
         <Link href="/" className="glass p-2.5 rounded-xl hover:bg-white/5 transition-all">
@@ -120,174 +141,157 @@ export default function RequestReviewPage() {
         </Link>
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-purple-400" />
-            Request Code Review
+            <Sparkles className="w-6 h-6 text-purple-400 animate-pulse" />
+            AI Smart Contract Auditor
           </h1>
           <p className="text-sm text-slate-400">
-            Submit Solidity source code details to execute a TEE-based AI review.
+            Submit a Solidity contract GitHub link or paste the code directly for a TEE-secured AI review.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Form */}
-        <div className="lg:col-span-2 space-y-6">
-          {state === "IDLE" || state === "FAILED" ? (
-            <form onSubmit={handleSubmit} className="glass p-6 rounded-2xl space-y-6">
-              {txError && (
-                <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs flex gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{txError}</span>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Solidity Source URI</label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    required
-                    placeholder="https://github.com/user/repo/blob/main/contracts/Token.sol"
-                    value={sourceURI}
-                    onChange={(e) => setSourceURI(e.target.value)}
-                    className="w-full bg-slate-950/40 border border-white/5 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-purple-500/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAutoHash}
-                    className="bg-slate-900 border border-slate-800 text-slate-300 hover:text-white px-3 py-2 rounded-xl text-xs transition-colors shrink-0 cursor-pointer"
-                  >
-                    Auto-Hash
-                  </button>
-                </div>
+      <div className="space-y-6">
+        {state === "IDLE" || state === "FAILED" ? (
+          <form onSubmit={handleSubmit} className="glass p-6 rounded-2xl space-y-6">
+            {/* Error notifications */}
+            {(formError || txError) && (
+              <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs flex gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{formError || txError}</span>
               </div>
+            )}
 
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Source Content Hash (SHA256/Keccak)</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="0x..."
-                  value={codeHash}
-                  onChange={(e) => setCodeHash(e.target.value)}
-                  className="w-full bg-slate-950/40 border border-white/5 rounded-xl px-4 py-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:border-purple-500/50"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">TEE Executor Node</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="0x..."
-                  value={executor}
-                  onChange={(e) => setExecutor(e.target.value)}
-                  className="w-full bg-slate-950/40 border border-white/5 rounded-xl px-4 py-2.5 text-sm font-mono text-slate-100 focus:outline-none focus:border-purple-500/50"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Commitment TTL (blocks)</label>
-                <input
-                  type="number"
-                  required
-                  value={ttl}
-                  onChange={(e) => setTtl(Number(e.target.value))}
-                  className="w-full bg-slate-950/40 border border-white/5 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-purple-500/50"
-                />
-              </div>
-
-              {isLocked ? (
-                <div className="p-4 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl text-xs flex gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{lockMessage}</span>
-                </div>
-              ) : (
-                <button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-purple-500/20 transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer"
-                >
-                  Submit Code Review Request
-                </button>
-              )}
-            </form>
-          ) : (
-            /* Execution State Indicator */
-            <div className="glass p-8 rounded-2xl space-y-6 text-center">
-              <Loader2 className="w-12 h-12 text-purple-500 mx-auto animate-spin" />
-              <div className="space-y-2">
-                <h3 className="text-xl font-bold text-white uppercase tracking-wider">{state}</h3>
-                <p className="text-sm text-slate-400">
-                  {state === "CONFIRMING" && "Approve the transaction in your wallet..."}
-                  {state === "SUBMITTED" && "Waiting for Phase 1 block inclusion..."}
-                  {state === "COMMITTED" && "Phase 1 committed! Starting TEE off-chain review..."}
-                  {state === "EXECUTING" && "AI agent is analyzing Solidity file inside TEE Tdx..."}
-                </p>
-              </div>
-
-              {state !== "CONFIRMING" && state !== "SUBMITTED" && (
-                <div className="w-full bg-slate-950/50 rounded-full h-2 overflow-hidden">
-                  <div className="bg-purple-500 h-full rounded-full animate-pulse" style={{ width: "60%" }}></div>
-                </div>
-              )}
-
+            {/* Input Mode Selector */}
+            <div className="flex bg-slate-950/60 p-1.5 rounded-xl border border-white/5">
               <button
-                onClick={reset}
-                className="text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                type="button"
+                onClick={() => {
+                  setInputMode("github");
+                  setFormError(null);
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-pointer ${
+                  inputMode === "github"
+                    ? "bg-purple-600/90 text-white shadow-lg shadow-purple-500/10"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                }`}
               >
-                Reset / Try Again
+                <Github className="w-3.5 h-3.5" />
+                GitHub Link
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setInputMode("paste");
+                  setFormError(null);
+                }}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-xs font-semibold tracking-wide transition-all cursor-pointer ${
+                  inputMode === "paste"
+                    ? "bg-purple-600/90 text-white shadow-lg shadow-purple-500/10"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/5"
+                }`}
+              >
+                <Code className="w-3.5 h-3.5" />
+                Paste Code
               </button>
             </div>
-          )}
-        </div>
 
-        {/* Right Column: Sidebar info and Wallet stats */}
-        <div className="space-y-6">
-          {/* Wallet stats */}
-          <div className="glass p-6 rounded-2xl space-y-4">
-            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Ritual Wallet Status</h3>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-400">Available Deposit:</span>
-                <span className="text-slate-100 font-mono font-semibold">{balanceFormatted} RITUAL</span>
-              </div>
-            </div>
-
-            <div className="border-t border-white/5 pt-4 space-y-3">
-              <label className="text-xs text-slate-400 block">Top up Deposit Balance</label>
-              <div className="flex gap-2">
+            {/* Form Inputs based on mode */}
+            {inputMode === "github" ? (
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">GitHub Solidity File URL</label>
                 <input
-                  type="number"
-                  step="0.01"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  className="w-full bg-slate-950/40 border border-white/5 rounded-lg px-2.5 py-1 text-sm font-mono text-slate-100 focus:outline-none"
+                  type="url"
+                  placeholder="https://github.com/username/repo/blob/main/contracts/MyContract.sol"
+                  value={sourceURI}
+                  onChange={(e) => setSourceURI(e.target.value)}
+                  className="w-full bg-slate-950/40 border border-white/5 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-purple-500/50 transition-colors"
                 />
-                <button
-                  onClick={handleDeposit}
-                  disabled={isDepositing}
-                  className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors shrink-0 cursor-pointer"
-                >
-                  {isDepositing ? "Funding..." : "Deposit"}
-                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">Solidity Source Code</label>
+                <div className="relative rounded-xl overflow-hidden border border-white/5 bg-slate-950/40 focus-within:border-purple-500/50 transition-all duration-300">
+                  {/* IDE-like Header */}
+                  <div className="bg-slate-900/80 px-4 py-2 border-b border-white/5 flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></div>
+                    <span className="text-[10px] font-mono text-slate-500 ml-2">MyContract.sol</span>
+                  </div>
+                  {/* Textarea */}
+                  <textarea
+                    rows={12}
+                    placeholder={`// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n\ncontract MyContract {\n    // Paste solidity contract code here...\n}`}
+                    value={pastedCode}
+                    onChange={(e) => setPastedCode(e.target.value)}
+                    className="w-full bg-transparent p-4 text-xs font-mono text-slate-300 focus:outline-none resize-y min-h-[250px]"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Fee Breakdown details */}
+            <div className="bg-slate-950/40 border border-white/5 rounded-xl p-4 space-y-2 text-xs">
+              <div className="flex justify-between text-slate-400">
+                <span>Registry Audit Fee (Treasury):</span>
+                <span className="font-mono text-slate-200">0.01 RITUAL</span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>TEE Computation Fee (TEE Budget):</span>
+                <span className="font-mono text-slate-200">0.01 RITUAL</span>
+              </div>
+              <div className="border-t border-white/5 pt-2 flex justify-between font-bold text-slate-200">
+                <span>Total Transaction Fee:</span>
+                <span className="font-mono text-purple-400">0.02 RITUAL</span>
               </div>
             </div>
-          </div>
 
-          {/* Quick Help */}
-          <div className="glass p-6 rounded-2xl space-y-4">
-            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <FileCode className="w-4 h-4 text-purple-400" />
-              Audit Process
-            </h3>
-            <ul className="text-xs text-slate-400 space-y-2 list-disc list-inside">
-              <li>Review fees are paid from the registry and EOA deposits.</li>
-              <li>Verification is run inside a hardware-isolated enclave (TEE).</li>
-              <li>Calculates structural issues and code quality score.</li>
-              <li>Mint passing audits into Soulbound Certificates instantly.</li>
-            </ul>
+            {/* Submit Button */}
+            {isWrongChain ? (
+              <button
+                type="button"
+                onClick={() => switchChain({ chainId: 1979 })}
+                className="w-full bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-semibold py-3 px-4 rounded-xl shadow-lg transition-all duration-300 cursor-pointer text-sm"
+              >
+                Switch Wallet to Ritual Chain to Submit
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold py-3 px-4 rounded-xl shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30 transition-all duration-300 transform hover:-translate-y-0.5 cursor-pointer text-sm"
+              >
+                Submit Code Review Request
+              </button>
+            )}
+          </form>
+        ) : (
+          /* Execution State Indicator */
+          <div className="glass p-8 rounded-2xl space-y-6 text-center">
+            <Loader2 className="w-12 h-12 text-purple-500 mx-auto animate-spin" />
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-white uppercase tracking-wider">{state}</h3>
+              <p className="text-sm text-slate-400">
+                {state === "CONFIRMING" && "Approve the audit transaction in your wallet..."}
+                {state === "SUBMITTED" && "Waiting for transaction block inclusion..."}
+                {state === "COMMITTED" && "Transaction confirmed! Starting TEE off-chain review..."}
+                {state === "EXECUTING" && "Ritual AI Auditor is evaluating code inside secure TEE..."}
+              </p>
+            </div>
+
+            {state !== "CONFIRMING" && state !== "SUBMITTED" && (
+              <div className="w-full bg-slate-950/50 rounded-full h-2 overflow-hidden max-w-md mx-auto">
+                <div className="bg-purple-500 h-full rounded-full animate-pulse" style={{ width: "70%" }}></div>
+              </div>
+            )}
+
+            <button
+              onClick={reset}
+              className="text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+            >
+              Reset / Try Again
+            </button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

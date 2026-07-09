@@ -17,6 +17,8 @@ contract CodeProofReviewRegistry is Ownable, ReentrancyGuard {
     address public constant ASYNC_DELIVERY = 0x5A16214fF555848411544b005f7Ac063742f39F6;
     address public constant SOVEREIGN_AGENT_PRECOMPILE = 0x000000000000000000000000000000000000080C;
 
+    address public constant TREASURY = 0x5905c9Dea6Ae52AA0947D8F7F218263889eDfC4E;
+
     struct IssueSummary {
         uint16 critical;
         uint16 high;
@@ -93,6 +95,10 @@ contract CodeProofReviewRegistry is Ownable, ReentrancyGuard {
         require(ttl > 0, "TTL must be greater than zero");
 
         reviewId = nextId++;
+
+        // Transfer the requestFee (0.01 RITUAL) to the treasury
+        (bool feeSuccess, ) = TREASURY.call{value: requestFee}("");
+        require(feeSuccess, "Failed to send fee to treasury");
 
         // Fund user's RitualWallet balance if extra funds were sent
         uint256 feeToDeposit = msg.value - requestFee;
