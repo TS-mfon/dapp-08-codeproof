@@ -114,7 +114,6 @@ export default function RequestReviewPage() {
           to: DEFAULT_REGISTRY_ADDRESS,
           data,
           value: totalTxValue,
-          gas: BigInt(2000000), // sufficient gas limit for precompile TEE call
         });
       });
     } catch (err: any) {
