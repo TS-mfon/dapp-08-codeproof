@@ -35,6 +35,25 @@ export default function RequestReviewPage() {
     functionName: "requestFee",
   });
 
+  // Read active TEE executor dynamically from registry
+  const { data: dynamicExecutor } = useReadContract({
+    address: "0x9644e8562cE0Fe12b4deeC4163c064A8862Bf47F",
+    abi: [
+      {
+        name: "getIndexedServiceByCapabilityAt",
+        type: "function",
+        stateMutability: "view",
+        inputs: [
+          { name: "capability", type: "uint8" },
+          { name: "index", type: "uint256" },
+        ],
+        outputs: [{ type: "address" }],
+      },
+    ] as const,
+    functionName: "getIndexedServiceByCapabilityAt",
+    args: [0, BigInt(0)],
+  });
+
   // Auto switch chain to Ritual Chain (ID 1979)
   useEffect(() => {
     if (isConnected && chain?.id !== 1979) {
@@ -75,7 +94,7 @@ export default function RequestReviewPage() {
     }
 
     // Default TEE Executor and TTL
-    const defaultExecutor = "0x862bF47f9644e8562cE0Fe12b4deeC4163c064A8" as Hex;
+    const defaultExecutor = (dynamicExecutor || "0x20808e03EFa33E16ac7d5138a026c9c56448D3EC") as Hex;
     const defaultTtl = 100;
 
     // We must bypass simulation by using encodeFunctionData + sendTransactionAsync
