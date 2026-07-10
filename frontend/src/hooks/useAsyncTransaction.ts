@@ -107,7 +107,20 @@ export function useAsyncTransaction() {
       return hash;
     } catch (err: any) {
       setState("FAILED");
-      setError(err?.message || "Transaction failed");
+      let friendlyError = "Transaction failed";
+      if (err?.message) {
+        const msg = err.message.toLowerCase();
+        if (msg.includes("user rejected") || msg.includes("user denied") || err?.code === 4001) {
+          friendlyError = "Transaction rejected by user.";
+        } else if (msg.includes("insufficient funds") || msg.includes("exceeds balance")) {
+          friendlyError = "Insufficient RITUAL balance to cover transaction and gas fees.";
+        } else if (msg.includes("revert")) {
+          friendlyError = "Transaction reverted by the network. Please verify contract code or network status.";
+        } else {
+          friendlyError = err.message.split("\n")[0] || "Transaction failed";
+        }
+      }
+      setError(friendlyError);
       throw err;
     }
   };
