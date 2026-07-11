@@ -50,7 +50,7 @@ contract CodeProofTest is Test {
             uint256(1_500_000),                   // 8: deliveryGasLimit
             uint256(1_000_000_000),               // 9: deliveryMaxFeePerGas
             uint256(100_000_000),                 // 10: deliveryMaxPriorityFeePerGas
-            uint16(0),                            // 11: cliType (0 = claude_code)
+            uint16(6),                            // 11: cliType (6 = zeroclaw)
             prompt,                               // 12: prompt
             hex"",                                // 13: encryptedSecrets
             emptyRef,                             // 14: convoHistory
