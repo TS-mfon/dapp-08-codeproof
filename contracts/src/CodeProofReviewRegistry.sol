@@ -126,7 +126,7 @@ contract CodeProofReviewRegistry is Ownable, ReentrancyGuard {
             uint256(1_500_000),                   // 8: deliveryGasLimit
             uint256(1_000_000_000),               // 9: deliveryMaxFeePerGas
             uint256(100_000_000),                 // 10: deliveryMaxPriorityFeePerGas
-            uint16(0),                            // 11: cliType (0 = claude_code)
+            uint16(6),                            // 11: cliType (6 = zeroclaw)
             prompt,                               // 12: prompt
             hex"",                                // 13: encryptedSecrets
             StorageRef("", "", ""),               // 14: convoHistory
@@ -146,7 +146,12 @@ contract CodeProofReviewRegistry is Ownable, ReentrancyGuard {
 
         // Decode Phase 1 output (bytes32 job commitment hash)
         (, bytes memory actualOutput) = abi.decode(rawOutput, (bytes, bytes));
-        bytes32 jobId = abi.decode(actualOutput, (bytes32));
+        bytes32 jobId;
+        if (actualOutput.length >= 32) {
+            jobId = abi.decode(actualOutput, (bytes32));
+        } else {
+            jobId = keccak256(abi.encodePacked(block.number, msg.sender, codeHash));
+        }
 
         // Track job relationship
         jobToReview[jobId] = reviewId;
