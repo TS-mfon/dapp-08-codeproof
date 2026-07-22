@@ -39,6 +39,7 @@ export const wagmiConfig = createConfig({
 });
 
 export const addresses = {
+  zero: "0x0000000000000000000000000000000000000000" as `0x${string}`,
   registry: (process.env.NEXT_PUBLIC_REGISTRY_ADDRESS ||
     "0x0000000000000000000000000000000000000000") as `0x${string}`,
   certificate: (process.env.NEXT_PUBLIC_CERTIFICATE_ADDRESS ||

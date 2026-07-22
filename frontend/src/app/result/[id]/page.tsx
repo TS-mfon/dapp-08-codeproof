@@ -1,80 +1,71 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import {
   BadgeCheck,
-  ExternalLink,
   FileJson2,
   LockKeyhole,
   Share2,
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { encodeFunctionData } from "viem";
-import { useAccount, useSendTransaction } from "wagmi";
+import {
+  useAccount,
+  useReadContract,
+  useSendTransaction,
+} from "wagmi";
 import { Badge, Button, Panel } from "@/components/ui";
 import { registryAbi } from "@/lib/abi";
-import { graphql, type ReviewRow } from "@/lib/graphql";
 import { addresses } from "@/lib/ritual";
 import { reviewStatuses, statusTone } from "@/lib/status";
 
-type Version = {
-  reviewId: string;
-  version: number;
-  mode: number;
-  status: number;
-  sourceHash: string;
-  sourceURI: string;
-  provenanceVerified: boolean;
+type Report = {
   score?: number;
-  reportHash?: string;
-  reportURI?: string;
-  issues: {
-    critical: number;
-    high: number;
-    medium: number;
-    low: number;
-    gas: number;
-  };
-  jobId?: string;
-  scheduleId?: string;
-  reason?: string;
-  createdBlock: number;
-  updatedBlock: number;
+  summary?: string;
+  risks?: string[];
 };
-
-const query = `query Review($id: ID!) {
-  review(id: $id) {
-    id owner mode status createdBlock updatedBlock versionCount publicShare
-    provenanceVerified latestHash latestURI latestScore latestReason
-    versions {
-      reviewId version mode status sourceHash sourceURI provenanceVerified score
-      reportHash reportURI issues { critical high medium low gas }
-      jobId scheduleId reason createdBlock updatedBlock
-    }
-  }
-}`;
 
 export default function ResultPage() {
   const params = useParams<{ id: string }>();
+  const reviewId = BigInt(params.id);
   const { address } = useAccount();
   const { sendTransactionAsync, isPending } = useSendTransaction();
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["review", params.id],
-    queryFn: () =>
-      graphql<{ review: (ReviewRow & { versions: Version[] }) | null }>(query, {
-        id: params.id,
-      }),
+  const reviewQuery = useReadContract({
+    address: addresses.registry,
+    abi: registryAbi,
+    functionName: "getReview",
+    args: [reviewId],
   });
-  const review = data?.review;
-  const version = review?.versions?.[0];
+  const versionQuery = useReadContract({
+    address: addresses.registry,
+    abi: registryAbi,
+    functionName: "getVersion",
+    args: [reviewId, 1],
+  });
+  const reportQuery = useReadContract({
+    address: addresses.registry,
+    abi: registryAbi,
+    functionName: "getReport",
+    args: [reviewId, 1],
+    account: address,
+    query: { enabled: Boolean(address) },
+  });
+
+  const review = reviewQuery.data;
+  const version = versionQuery.data;
   const isOwner =
     address?.toLowerCase() === review?.owner.toLowerCase();
+  let report: Report | null = null;
+  try {
+    report = reportQuery.data ? JSON.parse(reportQuery.data) : null;
+  } catch {
+    report = null;
+  }
 
   async function send(
     functionName: "setPublicShare" | "mintCertificate",
     args: readonly [bigint, boolean] | readonly [bigint, number],
   ) {
-    const hash = await sendTransactionAsync({
+    await sendTransactionAsync({
       to: addresses.registry,
       data: encodeFunctionData({
         abi: registryAbi,
@@ -82,28 +73,33 @@ export default function ResultPage() {
         args: args as never,
       }),
     });
-    await new Promise((resolve) => setTimeout(resolve, 1_500));
-    await refetch();
-    return hash;
+    await Promise.all([
+      reviewQuery.refetch(),
+      versionQuery.refetch(),
+      reportQuery.refetch(),
+    ]);
   }
 
-  if (isLoading) return <div className="empty">Loading indexed review...</div>;
-  if (error || !review)
+  if (reviewQuery.isLoading || versionQuery.isLoading) {
+    return <div className="empty">Loading review from Ritual Chain...</div>;
+  }
+  if (!review || !version || review.owner === addresses.zero) {
     return (
       <Panel>
         <div className="empty">
           <FileJson2 size={28} />
-          Review #{params.id} is not available from the indexer.
+          Review #{params.id} was not found on Ritual Chain.
         </div>
       </Panel>
     );
+  }
 
   return (
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">Review #{review.id}</span>
-          <h1>Code review result</h1>
+          <span className="eyebrow">Review #{params.id}</span>
+          <h1>Code audit result</h1>
           <p className="mono">{review.owner}</p>
         </div>
         <div className="toolbar">
@@ -121,9 +117,7 @@ export default function ResultPage() {
           <Panel>
             <div className="panel-header">
               <h2>Latest assessment</h2>
-              <Badge tone={review.mode === 0 ? "pending" : "ai"}>
-                {review.mode === 0 ? "Fast" : "Deep"} v{review.versionCount}
-              </Badge>
+              <Badge tone="ai">Ritual LLM</Badge>
             </div>
             <div
               className="panel-body"
@@ -134,31 +128,21 @@ export default function ResultPage() {
                 alignItems: "center",
               }}
             >
-              <div className="score-ring">{review.latestScore ?? "--"}</div>
+              <div className="score-ring">
+                {review.status === 3 ? version.score : "--"}
+              </div>
               <div>
                 <h2>
                   {review.status === 3
-                    ? (review.latestScore ?? 0) >= 70
+                    ? version.score >= 70
                       ? "Passing baseline"
                       : "Remediation required"
                     : reviewStatuses[review.status]}
                 </h2>
                 <p style={{ fontSize: 13 }}>
-                  Certificate eligibility requires a score of at least 70 and
-                  zero critical findings.
+                  {report?.summary ||
+                    "The structured report is available to the review owner or after public sharing is enabled."}
                 </p>
-                {review.latestURI && (
-                  <Button asChild variant="secondary">
-                    <a
-                      href={normalizeStorageUri(review.latestURI)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <ExternalLink size={15} />
-                      Open full report
-                    </a>
-                  </Button>
-                )}
               </div>
             </div>
           </Panel>
@@ -170,11 +154,11 @@ export default function ResultPage() {
             <div className="panel-body issue-grid">
               {(
                 [
-                  ["Critical", version?.issues.critical ?? 0],
-                  ["High", version?.issues.high ?? 0],
-                  ["Medium", version?.issues.medium ?? 0],
-                  ["Low", version?.issues.low ?? 0],
-                  ["Gas", version?.issues.gas ?? 0],
+                  ["Critical", version.issues.critical],
+                  ["High", version.issues.high],
+                  ["Medium", version.issues.medium],
+                  ["Low", version.issues.low],
+                  ["Gas", version.issues.gas],
                 ] as const
               ).map(([label, value]) => (
                 <div className="issue" key={label}>
@@ -187,15 +171,31 @@ export default function ResultPage() {
 
           <Panel>
             <div className="panel-header">
+              <h2>Risks and remediation</h2>
+            </div>
+            <div className="panel-body stack">
+              {report?.risks?.length ? (
+                report.risks.map((risk) => (
+                  <div className="check-row" key={risk}>
+                    <span>{risk}</span>
+                  </div>
+                ))
+              ) : (
+                <p style={{ fontSize: 13, margin: 0 }}>
+                  Connect the owner wallet to read a private report.
+                </p>
+              )}
+            </div>
+          </Panel>
+
+          <Panel>
+            <div className="panel-header">
               <h2>Immutable anchors</h2>
             </div>
             <div className="panel-body stack">
-              <Anchor label="Source hash" value={version?.sourceHash} />
-              <Anchor label="Report hash" value={version?.reportHash} />
-              <Anchor
-                label={version?.jobId ? "Agent job" : "Schedule"}
-                value={version?.jobId || version?.scheduleId}
-              />
+              <Anchor label="Source hash" value={version.sourceHash} />
+              <Anchor label="Report hash" value={version.reportHash} />
+              <Anchor label="Report URI" value={version.reportURI} />
             </div>
           </Panel>
         </div>
@@ -211,10 +211,7 @@ export default function ResultPage() {
                 variant="secondary"
                 disabled={!isOwner || isPending}
                 onClick={() =>
-                  void send("setPublicShare", [
-                    BigInt(review.id),
-                    !review.publicShare,
-                  ])
+                  void send("setPublicShare", [reviewId, !review.publicShare])
                 }
               >
                 <Share2 size={15} />
@@ -225,41 +222,17 @@ export default function ResultPage() {
                   !isOwner ||
                   isPending ||
                   review.status !== 3 ||
-                  (review.latestScore ?? 0) < 70 ||
-                  (version?.issues.critical ?? 1) > 0
+                  version.score < 70 ||
+                  version.issues.critical > 0 ||
+                  version.certificateMinted
                 }
-                onClick={() =>
-                  void send("mintCertificate", [
-                    BigInt(review.id),
-                    review.versionCount,
-                  ])
-                }
+                onClick={() => void send("mintCertificate", [reviewId, 1])}
               >
                 <BadgeCheck size={15} />
-                Mint certificate
+                {version.certificateMinted
+                  ? "Certificate minted"
+                  : "Mint certificate"}
               </Button>
-              {!isOwner && (
-                <p style={{ fontSize: 12, margin: 0 }}>
-                  Connect the review owner wallet to change visibility or mint.
-                </p>
-              )}
-            </div>
-          </Panel>
-          <Panel>
-            <div className="panel-header">
-              <h2>Version history</h2>
-            </div>
-            <div className="panel-body stack">
-              {review.versions.map((item) => (
-                <div className="check-row" key={item.version}>
-                  <span>
-                    v{item.version} · {item.mode === 0 ? "Fast" : "Deep"}
-                  </span>
-                  <Badge tone={statusTone(item.status)}>
-                    {item.score ?? reviewStatuses[item.status]}
-                  </Badge>
-                </div>
-              ))}
             </div>
           </Panel>
         </div>
@@ -268,18 +241,13 @@ export default function ResultPage() {
   );
 }
 
-function Anchor({ label, value }: { label: string; value?: string }) {
+function Anchor({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>
-        {label}
+    <div className="check-row" style={{ display: "block" }}>
+      <span>{label}</span>
+      <div className="mono" style={{ marginTop: 7, overflowWrap: "anywhere" }}>
+        {value || "--"}
       </div>
-      <div className="code-hash mono">{value || "Not available"}</div>
     </div>
   );
-}
-
-function normalizeStorageUri(uri: string) {
-  if (!uri.startsWith("hf://")) return uri;
-  return `https://huggingface.co/datasets/${uri.slice(5)}`;
 }

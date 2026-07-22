@@ -10,6 +10,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   decodeEventLog,
   encodeFunctionData,
@@ -58,6 +59,7 @@ export function ReviewComposer() {
   const [executionBudget, setExecutionBudget] = useState("0.02");
   const [status, setStatus] = useState<LifecycleStatus | null>(null);
   const [message, setMessage] = useState("");
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const { data: executors, isLoading: loadingExecutors } = useExecutors();
@@ -216,6 +218,7 @@ export function ReviewComposer() {
           ? `Review #${reviewId} completed on Ritual.`
           : "Review completed on Ritual.",
       );
+      if (reviewId) router.push(`/result/${reviewId}`);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Transaction failed";
       if (txHash) await setPending(txHash, "FAILED", detail);
