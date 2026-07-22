@@ -1,22 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
-import { WagmiProvider, createConfig, http } from "wagmi";
-import { injected } from "wagmi/connectors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ritualChain } from "../lib/ritual";
-
-export const wagmiConfig = createConfig({
-  chains: [ritualChain],
-  connectors: [injected()],
-  transports: {
-    [ritualChain.id]: http(),
-  },
-});
+import { useState } from "react";
+import { WagmiProvider } from "wagmi";
+import { wagmiConfig } from "@/lib/ritual";
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
-
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: { staleTime: 8_000, retry: 1, refetchOnWindowFocus: false },
+        },
+      }),
+  );
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>

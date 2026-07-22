@@ -3,17 +3,55 @@
   "features": [
     "HTTP API calls",
     "LLM inference",
-    "Agent execution",
-    "Secrets / encryption"
+    "Sovereign Agent execution",
+    "Ed25519 provenance",
+    "HuggingFace data availability",
+    "Scheduler chaining",
+    "Event indexer"
   ],
-  "current_phase": 7,
+  "current_phase": 5,
   "phases": [
-    "Phase 1: Architecture",
-    "Phase 2: Smart Contracts",
-    "Phase 3: Frontend",
-    "Phase 5: Integration",
-    "Phase 6: Testing",
-    "Phase 7: Post-Build Verification"
+    {
+      "name": "Phase 1: Clean workspace and architecture",
+      "status": "completed",
+      "artifacts": ["plan.md", "package.json", "pnpm-workspace.yaml"]
+    },
+    {
+      "name": "Phase 2: Contracts and tests",
+      "status": "completed",
+      "artifacts": [
+        "contracts/src/CodeProofReviewRegistry.sol",
+        "contracts/src/CodeProofCertificate.sol",
+        "contracts/test/CodeProof.t.sol"
+      ]
+    },
+    {
+      "name": "Phase 3: Rebuildable indexer",
+      "status": "completed",
+      "artifacts": [
+        "indexer/src/projector.ts",
+        "indexer/src/chain.ts",
+        "indexer/src/graphql.ts"
+      ]
+    },
+    {
+      "name": "Phase 4: Frontend and storage",
+      "status": "completed",
+      "artifacts": [
+        "frontend/src/app",
+        "frontend/src/components",
+        "frontend/src/app/api/storage"
+      ]
+    },
+    {
+      "name": "Phase 5: Local verification",
+      "status": "completed",
+      "artifacts": [
+        "pnpm-lock.yaml",
+        "frontend/.next",
+        "indexer/dist"
+      ]
+    }
   ],
   "files_read": [
     "skills/ritual-meta-projection/SKILL.md",
@@ -21,22 +59,31 @@
     "examples/registry.json",
     "skills/ritual-dapp-overview/SKILL.md",
     "skills/ritual-dapp-precompiles/SKILL.md",
-    "skills/ritual-dapp-longrunning/SKILL.md",
+    "skills/ritual-dapp-http/SKILL.md",
+    "skills/ritual-dapp-llm/SKILL.md",
     "skills/ritual-dapp-agents/SKILL.md",
+    "skills/ritual-dapp-da/SKILL.md",
+    "skills/ritual-dapp-secrets/SKILL.md",
+    "skills/ritual-dapp-ed25519/SKILL.md",
     "skills/ritual-dapp-contracts/SKILL.md",
     "skills/ritual-dapp-wallet/SKILL.md",
-    "skills/ritual-dapp-deploy/SKILL.md"
+    "skills/ritual-dapp-frontend/SKILL.md",
+    "skills/ritual-dapp-design/SKILL.md",
+    "skills/ritual-dapp-deploy/SKILL.md",
+    "skills/ritual-dapp-testing/SKILL.md",
+    "agents/ritual-dapp-debugger.md",
+    "skills/ritual-meta-verification/SKILL.md"
   ],
-  "next_file": "skills/ritual-dapp-testing/SKILL.md",
+  "next_file": "contracts/script/Deploy.s.sol",
   "markers": {
-    "chain_connection": true,
-    "wallet_funded": true,
+    "chain_connection": false,
+    "wallet_funded": false,
     "contract_compiled": true,
-    "contract_deployed": true,
+    "contract_deployed": false,
     "precompile_simulated": true,
-    "precompile_settled": true,
+    "precompile_settled": false,
     "frontend_renders": true,
-    "frontend_connects": true,
-    "e2e_complete": true
+    "frontend_connects": false,
+    "e2e_complete": false
   }
 }

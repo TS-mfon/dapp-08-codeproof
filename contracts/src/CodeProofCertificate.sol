@@ -1,52 +1,130 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+contract CodeProofCertificate {
+    string public constant name = "CodeProof Certificate";
+    string public constant symbol = "CODEPROOF";
 
-contract CodeProofCertificate is ERC721, Ownable {
-    event Locked(uint256 indexed tokenId);
-
+    address public immutable registry;
     uint256 public nextTokenId;
-    address public registry;
 
-    mapping(uint256 => string) private _tokenURIs;
-
-    modifier onlyRegistry() {
-        require(msg.sender == registry, "Only registry can call");
-        _;
+    struct CertificateData {
+        uint256 reviewId;
+        uint32 version;
+        bytes32 reportHash;
+        string reportURI;
     }
 
-    constructor(address _registry) ERC721("CodeProof Certificate", "CPCERT") Ownable(msg.sender) {
-        require(_registry != address(0), "Registry cannot be zero address");
-        registry = _registry;
+    mapping(uint256 => address) private _owners;
+    mapping(address => uint256) private _balances;
+    mapping(uint256 => CertificateData) private _certificateData;
+
+    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+    event Locked(uint256 indexed tokenId);
+    event CertificateIssued(
+        uint256 indexed tokenId,
+        uint256 indexed reviewId,
+        uint32 indexed version,
+        bytes32 reportHash
+    );
+
+    error OnlyRegistry();
+    error InvalidRecipient();
+    error NonexistentToken();
+    error Soulbound();
+
+    constructor(address registry_) {
+        if (registry_ == address(0)) revert InvalidRecipient();
+        registry = registry_;
     }
 
-    function mint(address to, string calldata reportURI) external onlyRegistry returns (uint256) {
-        uint256 tokenId = nextTokenId++;
-        _safeMint(to, tokenId);
-        _tokenURIs[tokenId] = reportURI;
+    function mint(
+        address to,
+        uint256 reviewId,
+        uint32 version,
+        bytes32 reportHash,
+        string calldata reportURI
+    ) external returns (uint256 tokenId) {
+        if (msg.sender != registry) revert OnlyRegistry();
+        if (to == address(0)) revert InvalidRecipient();
+
+        tokenId = nextTokenId++;
+        _owners[tokenId] = to;
+        _balances[to]++;
+        _certificateData[tokenId] = CertificateData({
+            reviewId: reviewId,
+            version: version,
+            reportHash: reportHash,
+            reportURI: reportURI
+        });
+
+        emit Transfer(address(0), to, tokenId);
         emit Locked(tokenId);
-        return tokenId;
+        emit CertificateIssued(tokenId, reviewId, version, reportHash);
     }
 
-    function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        require(_ownerOf(tokenId) != address(0), "ERC721: invalid token ID");
-        return _tokenURIs[tokenId];
+    function ownerOf(uint256 tokenId) public view returns (address owner) {
+        owner = _owners[tokenId];
+        if (owner == address(0)) revert NonexistentToken();
     }
 
-    // ERC5192 lock status: always locked for Soulbound
+    function balanceOf(address owner) external view returns (uint256) {
+        if (owner == address(0)) revert InvalidRecipient();
+        return _balances[owner];
+    }
+
+    function tokenURI(uint256 tokenId) external view returns (string memory) {
+        ownerOf(tokenId);
+        return _certificateData[tokenId].reportURI;
+    }
+
+    function certificateData(uint256 tokenId)
+        external
+        view
+        returns (CertificateData memory)
+    {
+        ownerOf(tokenId);
+        return _certificateData[tokenId];
+    }
+
     function locked(uint256 tokenId) external view returns (bool) {
-        require(_ownerOf(tokenId) != address(0), "ERC721: invalid token ID");
+        ownerOf(tokenId);
         return true;
     }
 
-    // OpenZeppelin v5: intercept transfers at the base level to implement Soulbound behavior
-    function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
-        address from = _ownerOf(tokenId);
-        if (from != address(0) && to != address(0)) {
-            revert("Soulbound: transfer disabled");
-        }
-        return super._update(to, tokenId, auth);
+    function approve(address, uint256) external pure {
+        revert Soulbound();
+    }
+
+    function setApprovalForAll(address, bool) external pure {
+        revert Soulbound();
+    }
+
+    function transferFrom(address, address, uint256) external pure {
+        revert Soulbound();
+    }
+
+    function safeTransferFrom(address, address, uint256) external pure {
+        revert Soulbound();
+    }
+
+    function safeTransferFrom(address, address, uint256, bytes calldata) external pure {
+        revert Soulbound();
+    }
+
+    function getApproved(uint256 tokenId) external view returns (address) {
+        ownerOf(tokenId);
+        return address(0);
+    }
+
+    function isApprovedForAll(address, address) external pure returns (bool) {
+        return false;
+    }
+
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == 0x01ffc9a7
+            || interfaceId == 0x80ac58cd
+            || interfaceId == 0x5b5e139f
+            || interfaceId == 0xb45a3c0e;
     }
 }

@@ -1,254 +1,252 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
-import "forge-std/Test.sol";
-import "../src/CodeProofReviewRegistry.sol";
-import "../src/CodeProofCertificate.sol";
+import {Test} from "forge-std/Test.sol";
+import {CodeProofCertificate} from "../src/CodeProofCertificate.sol";
+import {CodeProofReviewRegistry} from "../src/CodeProofReviewRegistry.sol";
+import {ITEEServiceRegistry, RitualAddresses} from "../src/RitualInterfaces.sol";
 
 contract CodeProofTest is Test {
-    CodeProofReviewRegistry public registry;
-    CodeProofCertificate public certificate;
+    CodeProofReviewRegistry internal registry;
+    CodeProofCertificate internal certificate;
 
-    address public constant ASYNC_DELIVERY = 0x5A16214fF555848411544b005f7Ac063742f39F6;
-    address public constant SOVEREIGN_AGENT_PRECOMPILE = 0x000000000000000000000000000000000000080C;
-    address public constant RITUAL_WALLET = 0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948;
-
-    address public developer = address(0x1111);
-    address public executor = address(0x2222);
-
-    bytes32 public codeHash = keccak256("code");
-    string public sourceURI = "https://github.com/user/repo/file.sol";
+    address internal treasury = makeAddr("treasury");
+    address internal developer = makeAddr("developer");
+    address internal llmExecutor = makeAddr("llmExecutor");
+    address internal attacker = makeAddr("attacker");
+    string internal source =
+        "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.24; contract Safe {}";
 
     function setUp() public {
-        registry = new CodeProofReviewRegistry();
+        registry = new CodeProofReviewRegistry(treasury);
         certificate = new CodeProofCertificate(address(registry));
         registry.setCertificateContract(address(certificate));
-
-        // Deal some RITUAL tokens (represented by native ether on testnet)
-        vm.deal(developer, 10 ether);
+        vm.deal(developer, 100 ether);
+        _mockExecutor(llmExecutor);
+        vm.mockCall(RitualAddresses.RITUAL_WALLET, bytes(""), bytes(""));
     }
 
-    // Helper to build precompile input for mockCall matching
-    function getPrecompileInput(uint64 ttl) internal view returns (bytes memory) {
-        string memory prompt = string(abi.encodePacked(
-            "Conduct a detailed smart contract review of the Solidity file at: ", sourceURI,
-            ". Verify the content hash matches: ", vmToString(codeHash),
-            ". Return a JSON containing exact counts for issue categories (critical, high, medium, low, gas), a score from 0-100, and a report hash."
-        ));
-
-        CodeProofReviewRegistry.StorageRef memory emptyRef = CodeProofReviewRegistry.StorageRef("", "", "");
-
-        return abi.encode(
-            executor,                             // 0: TEE executor
-            uint256(ttl),                         // 1: TTL
-            hex"",                                // 2: userPublicKey (unencrypted)
-            uint64(5),                            // 3: pollIntervalBlocks
-            uint64(1000),                         // 4: maxPollBlock
-            "{{TASK_ID}}",                        // 5: taskIdMarker
-            address(registry),                    // 6: deliveryTarget
-            registry.onSovereignAgentResult.selector, // 7: deliverySelector
-            uint256(1_500_000),                   // 8: deliveryGasLimit
-            uint256(1_000_000_000),               // 9: deliveryMaxFeePerGas
-            uint256(100_000_000),                 // 10: deliveryMaxPriorityFeePerGas
-            uint16(6),                            // 11: cliType (6 = zeroclaw)
-            prompt,                               // 12: prompt
-            hex"",                                // 13: encryptedSecrets
-            emptyRef,                             // 14: convoHistory
-            emptyRef,                             // 15: output
-            new CodeProofReviewRegistry.StorageRef[](0), // 16: skills
-            emptyRef,                             // 17: systemPrompt
-            "zai-org/GLM-4.7-FP8",                // 18: model
-            new string[](0),                      // 19: tools
-            uint16(10),                           // 20: maxTurns
-            uint32(4096),                         // 21: maxTokens
-            ""                                    // 22: rpcUrls
-        );
-    }
-
-    function vmToString(bytes32 value) internal pure returns (string memory) {
-        bytes memory alphabet = "0123456789abcdef";
-        bytes memory str = new bytes(64);
-        for (uint256 i = 0; i < 32; i++) {
-            str[i*2] = alphabet[uint8(value[i] >> 4)];
-            str[1+i*2] = alphabet[uint8(value[i] & 0x0f)];
-        }
-        return string(abi.encodePacked("0x", str));
-    }
-
-    function test_requestCodeReview() public {
-        vm.startPrank(developer);
-
-        // Mock the RitualWallet depositFor call
+    function testSimulationCreatesPendingReview() public {
         vm.mockCall(
-            RITUAL_WALLET,
-            abi.encodeWithSelector(IRitualWallet.depositFor.selector, developer, 100),
-            ""
+            RitualAddresses.LLM,
+            bytes(""),
+            abi.encode(bytes("simulated"), bytes(""))
         );
 
-        // Mock the Sovereign Agent precompile call
-        bytes32 expectedJobId = keccak256("jobId");
-        bytes memory mockPrecompileOutput = abi.encode(bytes("simmedInput"), abi.encode(expectedJobId));
-        bytes memory expectedInput = getPrecompileInput(100);
-        vm.mockCall(SOVEREIGN_AGENT_PRECOMPILE, expectedInput, mockPrecompileOutput);
-
-        uint256 reviewId = registry.requestCodeReview{value: 0.05 ether}(
-            codeHash,
-            sourceURI,
-            executor,
-            100
+        vm.prank(developer);
+        uint256 id = registry.requestReview{value: 0.03 ether}(
+            source, "solidity", _emptyProof(), _config()
         );
 
-        assertEq(reviewId, 0);
-        assertEq(registry.jobToReview(expectedJobId), 0);
-
-        uint256 rId = registry.getOwnerRecords(developer, 0, 1)[0];
-        assertEq(rId, 0); // reviewId is 0
-
-        vm.stopPrank();
+        CodeProofReviewRegistry.Review memory review = registry.getReview(id);
+        assertEq(review.owner, developer);
+        assertEq(
+            uint8(review.status),
+            uint8(CodeProofReviewRegistry.ReviewStatus.AI_REQUESTED)
+        );
+        assertEq(registry.ownerRecordCount(developer), 1);
+        assertEq(treasury.balance, registry.fastReviewFee());
     }
 
-    function test_callback_commitReview() public {
-        // First register a job
-        vm.startPrank(developer);
-        vm.mockCall(RITUAL_WALLET, abi.encodeWithSelector(IRitualWallet.depositFor.selector, developer, 100), "");
-        bytes32 expectedJobId = keccak256("jobId");
-        bytes memory mockPrecompileOutput = abi.encode(bytes("simmedInput"), abi.encode(expectedJobId));
-        bytes memory expectedInput = getPrecompileInput(100);
-        vm.mockCall(SOVEREIGN_AGENT_PRECOMPILE, expectedInput, mockPrecompileOutput);
-
-        registry.requestCodeReview{value: 0.05 ether}(codeHash, sourceURI, executor, 100);
-        vm.stopPrank();
-
-        // Simulate callback from AsyncDelivery
-        CodeProofReviewRegistry.IssueSummary memory issues = CodeProofReviewRegistry.IssueSummary({
-            critical: 0,
-            high: 1,
-            medium: 2,
-            low: 3,
-            gas: 0
-        });
-        bytes32 reportHash = keccak256("report");
-        string memory reportURI = "ipfs://QmReport";
-
-        bytes memory callbackResult = abi.encode(uint16(85), issues, reportHash, reportURI);
-
-        vm.prank(ASYNC_DELIVERY);
-        registry.onSovereignAgentResult(expectedJobId, callbackResult);
-
-        // Verify review details committed
-        (address dev, uint16 score, bool certMinted, bytes32 cHash, bytes32 rHash, string memory rURI, CodeProofReviewRegistry.IssueSummary memory returnedIssues) = registry.getReview(0);
-        assertEq(dev, developer);
-        assertEq(score, 85);
-        assertEq(certMinted, false);
-        assertEq(cHash, codeHash);
-        assertEq(rHash, reportHash);
-        assertEq(rURI, reportURI);
-    }
-
-    function test_callback_fails_unauthorized() public {
-        bytes32 expectedJobId = keccak256("jobId");
-        bytes memory callbackResult = abi.encode(uint16(85), CodeProofReviewRegistry.IssueSummary(0, 0, 0, 0, 0), keccak256(""), "");
-
-        vm.prank(address(0xdead));
-        vm.expectRevert("Only async delivery allowed");
-        registry.onSovereignAgentResult(expectedJobId, callbackResult);
-    }
-
-    function test_mintCertificate_success() public {
-        // Set up committed review
-        vm.startPrank(developer);
-        vm.mockCall(RITUAL_WALLET, abi.encodeWithSelector(IRitualWallet.depositFor.selector, developer, 100), "");
-        bytes32 expectedJobId = keccak256("jobId");
-        bytes memory expectedInput = getPrecompileInput(100);
-        vm.mockCall(SOVEREIGN_AGENT_PRECOMPILE, expectedInput, abi.encode(bytes(""), abi.encode(expectedJobId)));
-        registry.requestCodeReview{value: 0.05 ether}(codeHash, sourceURI, executor, 100);
-        vm.stopPrank();
-
-        // Deliver callback with passing results (score 90, 0 criticals)
-        CodeProofReviewRegistry.IssueSummary memory issues = CodeProofReviewRegistry.IssueSummary(0, 0, 1, 2, 0);
-        bytes memory callbackResult = abi.encode(uint16(90), issues, keccak256("report"), "ipfs://QmReport");
-        vm.prank(ASYNC_DELIVERY);
-        registry.onSovereignAgentResult(expectedJobId, callbackResult);
-
-        // Mint certificate
-        vm.prank(developer);
-        uint256 tokenId = registry.mintCertificate(0);
-        assertEq(tokenId, 0);
-
-        // Verify certificate details
-        assertEq(certificate.ownerOf(0), developer);
-        assertEq(certificate.tokenURI(0), "ipfs://QmReport");
-        assertTrue(certificate.locked(0));
-
-        (, , bool certMinted, , , , ) = registry.getReview(0);
-        assertTrue(certMinted);
-    }
-
-    function test_mintCertificate_fails_low_score() public {
-        // Set up committed review
-        vm.startPrank(developer);
-        vm.mockCall(RITUAL_WALLET, abi.encodeWithSelector(IRitualWallet.depositFor.selector, developer, 100), "");
-        bytes32 expectedJobId = keccak256("jobId");
-        bytes memory expectedInput = getPrecompileInput(100);
-        vm.mockCall(SOVEREIGN_AGENT_PRECOMPILE, expectedInput, abi.encode(bytes(""), abi.encode(expectedJobId)));
-        registry.requestCodeReview{value: 0.05 ether}(codeHash, sourceURI, executor, 100);
-        vm.stopPrank();
-
-        // Deliver callback with low score (55, 0 criticals)
-        CodeProofReviewRegistry.IssueSummary memory issues = CodeProofReviewRegistry.IssueSummary(0, 0, 1, 2, 0);
-        bytes memory callbackResult = abi.encode(uint16(55), issues, keccak256("report"), "ipfs://QmReport");
-        vm.prank(ASYNC_DELIVERY);
-        registry.onSovereignAgentResult(expectedJobId, callbackResult);
-
-        // Mint certificate should fail
-        vm.prank(developer);
-        vm.expectRevert("Score does not meet passing threshold");
-        registry.mintCertificate(0);
-    }
-
-    function test_mintCertificate_fails_critical_issues() public {
-        // Set up committed review
-        vm.startPrank(developer);
-        vm.mockCall(RITUAL_WALLET, abi.encodeWithSelector(IRitualWallet.depositFor.selector, developer, 100), "");
-        bytes32 expectedJobId = keccak256("jobId");
-        bytes memory expectedInput = getPrecompileInput(100);
-        vm.mockCall(SOVEREIGN_AGENT_PRECOMPILE, expectedInput, abi.encode(bytes(""), abi.encode(expectedJobId)));
-        registry.requestCodeReview{value: 0.05 ether}(codeHash, sourceURI, executor, 100);
-        vm.stopPrank();
-
-        // Deliver callback with high score but 1 critical issue
-        CodeProofReviewRegistry.IssueSummary memory issues = CodeProofReviewRegistry.IssueSummary(1, 0, 1, 2, 0);
-        bytes memory callbackResult = abi.encode(uint16(85), issues, keccak256("report"), "ipfs://QmReport");
-        vm.prank(ASYNC_DELIVERY);
-        registry.onSovereignAgentResult(expectedJobId, callbackResult);
-
-        // Mint certificate should fail
-        vm.prank(developer);
-        vm.expectRevert("Cannot mint certificate with critical issues");
-        registry.mintCertificate(0);
-    }
-
-    function test_soulbound_transfers_revert() public {
-        // Setup certificate
-        vm.startPrank(developer);
-        vm.mockCall(RITUAL_WALLET, abi.encodeWithSelector(IRitualWallet.depositFor.selector, developer, 100), "");
-        bytes32 expectedJobId = keccak256("jobId");
-        bytes memory expectedInput = getPrecompileInput(100);
-        vm.mockCall(SOVEREIGN_AGENT_PRECOMPILE, expectedInput, abi.encode(bytes(""), abi.encode(expectedJobId)));
-        registry.requestCodeReview{value: 0.05 ether}(codeHash, sourceURI, executor, 100);
-        vm.stopPrank();
-
-        CodeProofReviewRegistry.IssueSummary memory issues = CodeProofReviewRegistry.IssueSummary(0, 0, 0, 0, 0);
-        bytes memory callbackResult = abi.encode(uint16(90), issues, keccak256("report"), "ipfs://QmReport");
-        vm.prank(ASYNC_DELIVERY);
-        registry.onSovereignAgentResult(expectedJobId, callbackResult);
+    function testFulfilledReplayCommitsStructuredReview() public {
+        string memory json =
+            '{"score":91,"issues":{"critical":0,"high":1,"medium":2,"low":3,"gas":4},"summary":"Good","risks":[]}';
+        _mockReviewJson(json, 91, 0, 1, 2, 3, 4);
+        vm.mockCall(
+            RitualAddresses.LLM,
+            bytes(""),
+            abi.encode(bytes("simulated"), _actualOutput(json))
+        );
 
         vm.prank(developer);
-        uint256 tokenId = registry.mintCertificate(0);
+        uint256 id = registry.requestReview{value: 0.03 ether}(
+            source, "solidity", _emptyProof(), _config()
+        );
 
-        // Transfer should revert
+        CodeProofReviewRegistry.ReviewVersion memory version =
+            registry.getVersion(id, 1);
+        assertEq(version.score, 91);
+        assertEq(version.issues.high, 1);
+        assertEq(version.reportHash, keccak256(bytes(json)));
+        assertEq(uint8(version.status), 3);
+
         vm.prank(developer);
-        vm.expectRevert("Soulbound: transfer disabled");
-        certificate.transferFrom(developer, address(0x2222), tokenId);
+        assertEq(registry.getReport(id, 1), json);
+    }
+
+    function testOptionalEd25519Provenance() public {
+        bytes memory publicKey = new bytes(32);
+        bytes memory signature = new bytes(64);
+        vm.mockCall(RitualAddresses.ED25519, bytes(""), abi.encode(uint256(1)));
+        vm.mockCall(
+            RitualAddresses.LLM,
+            bytes(""),
+            abi.encode(bytes("simulated"), bytes(""))
+        );
+
+        vm.prank(developer);
+        uint256 id = registry.requestReview{value: 0.03 ether}(
+            source,
+            "solidity",
+            CodeProofReviewRegistry.Provenance(publicKey, signature),
+            _config()
+        );
+
+        CodeProofReviewRegistry.Review memory review = registry.getReview(id);
+        assertTrue(review.provenanceVerified);
+        assertEq(review.provenanceKeyHash, keccak256(publicKey));
+    }
+
+    function testPrivateReportRejectsOtherAccounts() public {
+        string memory json =
+            '{"score":50,"issues":{"critical":1,"high":1,"medium":0,"low":0,"gas":0},"summary":"Risk","risks":[]}';
+        _mockReviewJson(json, 50, 1, 1, 0, 0, 0);
+        vm.mockCall(
+            RitualAddresses.LLM,
+            bytes(""),
+            abi.encode(bytes("simulated"), _actualOutput(json))
+        );
+
+        vm.prank(developer);
+        uint256 id = registry.requestReview{value: 0.03 ether}(
+            source, "solidity", _emptyProof(), _config()
+        );
+
+        vm.prank(attacker);
+        vm.expectRevert(CodeProofReviewRegistry.Unauthorized.selector);
+        registry.getReport(id, 1);
+    }
+
+    function testPassingReviewMintsSoulboundCertificate() public {
+        string memory json =
+            '{"score":91,"issues":{"critical":0,"high":1,"medium":0,"low":0,"gas":0},"summary":"Pass","risks":[]}';
+        _mockReviewJson(json, 91, 0, 1, 0, 0, 0);
+        vm.mockCall(
+            RitualAddresses.LLM,
+            bytes(""),
+            abi.encode(bytes("simulated"), _actualOutput(json))
+        );
+
+        vm.startPrank(developer);
+        uint256 id = registry.requestReview{value: 0.03 ether}(
+            source, "solidity", _emptyProof(), _config()
+        );
+        uint256 tokenId = registry.mintCertificate(id, 1);
+        vm.stopPrank();
+
+        assertEq(certificate.ownerOf(tokenId), developer);
+        assertTrue(certificate.locked(tokenId));
+        vm.prank(developer);
+        vm.expectRevert(CodeProofCertificate.Soulbound.selector);
+        certificate.transferFrom(developer, attacker, tokenId);
+    }
+
+    function testPaginationAndVisibility() public {
+        vm.mockCall(
+            RitualAddresses.LLM,
+            bytes(""),
+            abi.encode(bytes("simulated"), bytes(""))
+        );
+        vm.startPrank(developer);
+        registry.requestReview{value: 0.03 ether}(
+            source, "solidity", _emptyProof(), _config()
+        );
+        registry.requestReview{value: 0.03 ether}(
+            source, "python", _emptyProof(), _config()
+        );
+        registry.setPublicShare(1, true);
+        vm.stopPrank();
+
+        uint256[] memory records = registry.getOwnerRecords(developer, 1, 10);
+        assertEq(records.length, 1);
+        assertEq(records[0], 1);
+        assertTrue(registry.getReview(1).publicShare);
+    }
+
+    function _emptyProof()
+        internal
+        pure
+        returns (CodeProofReviewRegistry.Provenance memory)
+    {
+        return CodeProofReviewRegistry.Provenance("", "");
+    }
+
+    function _config()
+        internal
+        view
+        returns (CodeProofReviewRegistry.LLMConfig memory)
+    {
+        return CodeProofReviewRegistry.LLMConfig(llmExecutor, 300);
+    }
+
+    function _actualOutput(string memory json) internal pure returns (bytes memory) {
+        bytes[] memory toolCalls = new bytes[](0);
+        bytes memory messageData = abi.encode("assistant", json, "", 0, toolCalls);
+        bytes[] memory choices = new bytes[](1);
+        choices[0] = abi.encode(uint256(0), "stop", messageData);
+        bytes memory completionData =
+            abi.encode("", "", uint256(0), "", "", "", uint256(1), choices, bytes(""));
+        return abi.encode(
+            false,
+            completionData,
+            bytes(""),
+            "",
+            CodeProofReviewRegistry.StorageRef("", "", "")
+        );
+    }
+
+    function _mockExecutor(address executor) internal {
+        ITEEServiceRegistry.TEEServiceNode memory node =
+            ITEEServiceRegistry.TEEServiceNode({
+                paymentAddress: executor,
+                teeAddress: executor,
+                teeType: 1,
+                publicKey: hex"01",
+                endpoint: "",
+                certPubKeyHash: bytes32(0),
+                capability: 1
+            });
+        ITEEServiceRegistry.TEEServiceContext memory context =
+            ITEEServiceRegistry.TEEServiceContext({
+                node: node,
+                isValid: true,
+                workloadId: bytes32(0)
+            });
+        vm.mockCall(
+            RitualAddresses.TEE_SERVICE_REGISTRY,
+            abi.encodeWithSelector(
+                ITEEServiceRegistry.getService.selector,
+                executor,
+                true
+            ),
+            abi.encode(context)
+        );
+    }
+
+    function _mockReviewJson(
+        string memory json,
+        uint256 score,
+        uint256 critical,
+        uint256 high,
+        uint256 medium,
+        uint256 low,
+        uint256 gasIssues
+    ) internal {
+        _mockJq(".score", json, score);
+        _mockJq(".issues.critical", json, critical);
+        _mockJq(".issues.high", json, high);
+        _mockJq(".issues.medium", json, medium);
+        _mockJq(".issues.low", json, low);
+        _mockJq(".issues.gas", json, gasIssues);
+    }
+
+    function _mockJq(string memory query, string memory json, uint256 value)
+        internal
+    {
+        vm.mockCall(
+            RitualAddresses.JQ,
+            abi.encode(query, json, uint8(1)),
+            abi.encode(value)
+        );
     }
 }

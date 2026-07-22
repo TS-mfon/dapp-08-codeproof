@@ -1,27 +1,25 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
-import "forge-std/Script.sol";
-import "../src/CodeProofReviewRegistry.sol";
-import "../src/CodeProofCertificate.sol";
+import {Script, console2} from "forge-std/Script.sol";
+import {CodeProofCertificate} from "../src/CodeProofCertificate.sol";
+import {CodeProofReviewRegistry} from "../src/CodeProofReviewRegistry.sol";
 
-contract DeployScript is Script {
-    function run() external {
-        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
-        vm.startBroadcast(deployerPrivateKey);
+contract DeployCodeProof is Script {
+    function run() external returns (
+        CodeProofReviewRegistry registry,
+        CodeProofCertificate certificate
+    ) {
+        uint256 deployerKey = vm.envUint("PRIVATE_KEY");
+        address treasury = vm.envOr("TREASURY_ADDRESS", vm.addr(deployerKey));
 
-        // Deploy Registry
-        CodeProofReviewRegistry registry = new CodeProofReviewRegistry();
-        console.log("Registry deployed at:", address(registry));
-
-        // Deploy Certificate
-        CodeProofCertificate certificate = new CodeProofCertificate(address(registry));
-        console.log("Certificate deployed at:", address(certificate));
-
-        // Wire together
+        vm.startBroadcast(deployerKey);
+        registry = new CodeProofReviewRegistry(treasury);
+        certificate = new CodeProofCertificate(address(registry));
         registry.setCertificateContract(address(certificate));
-        console.log("Certificate contract wired to registry.");
-
         vm.stopBroadcast();
+
+        console2.log("CodeProofReviewRegistry:", address(registry));
+        console2.log("CodeProofCertificate:", address(certificate));
     }
 }

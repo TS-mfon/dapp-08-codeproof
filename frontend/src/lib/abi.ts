@@ -1,180 +1,39 @@
-export const REGISTRY_ABI = [
-  {
-    name: "requestCodeReview",
-    type: "function",
-    stateMutability: "payable",
-    inputs: [
-      { name: "codeHash", type: "bytes32" },
-      { name: "sourceURI", type: "string" },
-      { name: "executor", type: "address" },
-      { name: "ttl", type: "uint64" }
-    ],
-    outputs: [{ name: "reviewId", type: "uint256" }]
-  },
-  {
-    name: "commitCodeReview",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "reviewId", type: "uint256" },
-      { name: "score", type: "uint16" },
-      {
-        name: "issues",
-        type: "tuple",
-        components: [
-          { name: "critical", type: "uint16" },
-          { name: "high", type: "uint16" },
-          { name: "medium", type: "uint16" },
-          { name: "low", type: "uint16" },
-          { name: "gas", type: "uint16" }
-        ]
-      },
-      { name: "reportHash", type: "bytes32" },
-      { name: "reportURI", type: "string" }
-    ],
-    outputs: []
-  },
-  {
-    name: "mintCertificate",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "reviewId", type: "uint256" }],
-    outputs: [{ name: "tokenId", type: "uint256" }]
-  },
-  {
-    name: "getReview",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "reviewId", type: "uint256" }],
-    outputs: [
-      { name: "developer", type: "address" },
-      { name: "score", type: "uint16" },
-      { name: "certificateMinted", type: "bool" },
-      { name: "codeHash", type: "bytes32" },
-      { name: "reportHash", type: "bytes32" },
-      { name: "reportURI", type: "string" },
-      {
-        name: "issues",
-        type: "tuple",
-        components: [
-          { name: "critical", type: "uint16" },
-          { name: "high", type: "uint16" },
-          { name: "medium", type: "uint16" },
-          { name: "low", type: "uint16" },
-          { name: "gas", type: "uint16" }
-        ]
-      }
-    ]
-  },
-  {
-    name: "getDeveloperReviews",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "developer", type: "address" }],
-    outputs: [{ type: "uint256[]" }]
-  },
-  {
-    name: "getOwnerRecords",
-    type: "function",
-    stateMutability: "view",
-    inputs: [
-      { name: "owner", type: "address" },
-      { name: "offset", type: "uint256" },
-      { name: "limit", type: "uint256" }
-    ],
-    outputs: [{ type: "uint256[]" }]
-  },
-  {
-    name: "requestFee",
-    type: "function",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "uint256" }]
-  },
-  {
-    name: "passingScoreThreshold",
-    type: "function",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "uint16" }]
-  },
-  {
-    name: "certificateContract",
-    type: "function",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "address" }]
-  },
-  {
-    name: "nextId",
-    type: "function",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "uint256" }]
-  },
-  {
-    name: "setRequestFee",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "_fee", type: "uint256" }],
-    outputs: []
-  },
-  {
-    name: "setPassingScoreThreshold",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "_threshold", type: "uint16" }],
-    outputs: []
-  },
-  {
-    name: "setCertificateContract",
-    type: "function",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "_certContract", type: "address" }],
-    outputs: []
-  },
-  {
-    type: "event",
-    name: "ReviewRequested",
-    inputs: [
-      { name: "id", type: "uint256", indexed: true },
-      { name: "owner", type: "address", indexed: true },
-      { name: "codeHash", type: "bytes32", indexed: true },
-      { name: "jobId", type: "bytes32", indexed: false }
-    ]
-  },
-  {
-    type: "event",
-    name: "ReviewCommitted",
-    inputs: [
-      { name: "id", type: "uint256", indexed: true },
-      { name: "score", type: "uint16", indexed: false },
-      { name: "reportHash", type: "bytes32", indexed: false },
-      { name: "reportURI", type: "string", indexed: false }
-    ]
-  }
-] as const;
+import { parseAbi } from "viem";
 
-export const CERTIFICATE_ABI = [
-  {
-    name: "ownerOf",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [{ type: "address" }]
-  },
-  {
-    name: "tokenURI",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [{ type: "string" }]
-  },
-  {
-    name: "locked",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [{ type: "bool" }]
-  }
-] as const;
+export const registryAbi = parseAbi([
+  "function nextReviewId() view returns (uint256)",
+  "function fastReviewFee() view returns (uint256)",
+  "function deepReviewFee() view returns (uint256)",
+  "function passingScoreThreshold() view returns (uint16)",
+  "function paused() view returns (bool)",
+  "function owner() view returns (address)",
+  "function treasury() view returns (address)",
+  "function getOwnerRecords(address account,uint256 offset,uint256 limit) view returns (uint256[])",
+  "function getReview(uint256 reviewId) view returns ((address owner,uint8 mode,uint8 status,uint64 createdBlock,uint64 updatedBlock,uint64 pendingUntilBlock,uint32 versionCount,bool publicShare,bool provenanceVerified,bytes32 provenanceKeyHash,bytes32 latestHash,string latestURI))",
+  "function getVersion(uint256 reviewId,uint32 version) view returns ((uint8 mode,uint8 status,uint16 score,bool certificateMinted,bytes32 sourceHash,string sourceURI,bytes32 instructionHash,string instructionURI,bytes32 reportHash,string reportURI,bytes32 jobId,uint256 scheduleId,(uint16 critical,uint16 high,uint16 medium,uint16 low,uint16 gas) issues))",
+  "function getReport(uint256 reviewId,uint32 version) view returns (string)",
+  "function requestReview(string source,string language,(bytes publicKey,bytes signature) proof,(address executor,uint64 ttl) config) payable returns (uint256 reviewId)",
+  "function setPublicShare(uint256 reviewId,bool enabled)",
+  "function mintCertificate(uint256 reviewId,uint32 version) returns (uint256 tokenId)",
+  "function setPaused(bool value)",
+  "function setFees(uint256 fastFee,uint256 deepFee)",
+  "function setPassingScoreThreshold(uint16 threshold)",
+  "event ReviewRequested(uint256 indexed id,uint32 indexed version,address indexed owner,uint8 mode,bytes32 sourceHash,string sourceURI,bool provenanceVerified)",
+]);
+
+export const ritualWalletAbi = parseAbi([
+  "function deposit(uint256 lockDuration) payable",
+  "function balanceOf(address user) view returns (uint256)",
+  "function lockUntil(address user) view returns (uint256)",
+]);
+
+export const trackerAbi = parseAbi([
+  "function hasPendingJobForSender(address sender) view returns (bool)",
+]);
+
+export const teeRegistryAbi = parseAbi([
+  "function getCapabilityIndexStatus() view returns (uint256 cursor,uint256 total,bool initialized,bool finalized)",
+  "function getIndexedServiceCountByCapability(uint8 capability) view returns (uint256 count)",
+  "function getIndexedServiceByCapabilityAt(uint8 capability,uint256 index) view returns (address teeAddress)",
+  "function getService(address addr,bool checkValidity) view returns (((address paymentAddress,address teeAddress,uint8 teeType,bytes publicKey,string endpoint,bytes32 certPubKeyHash,uint8 capability) node,bool isValid,bytes32 workloadId))",
+]);

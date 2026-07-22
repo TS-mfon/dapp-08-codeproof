@@ -1,0 +1,17 @@
+node_modules/
+.next/
+dist/
+coverage/
+*.log
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+indexer/data/
+indexer/*.db
+indexer/*.db-*

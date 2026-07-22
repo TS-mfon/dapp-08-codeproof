@@ -1,9 +1,16 @@
 [profile.default]
 src = "src"
+test = "test"
+script = "script"
 out = "out"
 libs = ["lib"]
+solc = "0.8.24"
 optimizer = true
-optimizer_runs = 200
+optimizer_runs = 1
 via_ir = true
 
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+[rpc_endpoints]
+ritual = "${RITUAL_RPC_URL}"
+
+[etherscan]
+ritual = { key = "unused", url = "${RITUAL_VERIFIER_URL}" }
