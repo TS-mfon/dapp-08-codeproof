@@ -1,5 +1,9 @@
-import { defineChain, fallback, http } from "viem";
-import { createConfig } from "wagmi";
+import { defineChain, http } from "viem";
+import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+
+const walletRpc =
+  process.env.NEXT_PUBLIC_RITUAL_WALLET_RPC_URL ||
+  "https://frontend-alpha-pied-17.vercel.app/api/rpc";
 
 export const ritualChain = defineChain({
   id: 1979,
@@ -7,10 +11,7 @@ export const ritualChain = defineChain({
   nativeCurrency: { name: "RITUAL", symbol: "RITUAL", decimals: 18 },
   rpcUrls: {
     default: {
-      http: [
-        process.env.NEXT_PUBLIC_RITUAL_RPC_URL ||
-          "https://rpc.ritualfoundation.org",
-      ],
+      http: [walletRpc],
       webSocket: ["wss://rpc.ritualfoundation.org/ws"],
     },
   },
@@ -27,13 +28,15 @@ export const ritualChain = defineChain({
   },
 });
 
-export const wagmiConfig = createConfig({
+export const wagmiConfig = getDefaultConfig({
+  appName: "CodeProof",
+  appDescription: "Simple multi-language code audits powered by Ritual LLM",
+  appUrl: "https://frontend-alpha-pied-17.vercel.app",
+  projectId:
+    process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "YOUR_PROJECT_ID",
   chains: [ritualChain],
   transports: {
-    [ritualChain.id]: fallback([
-      http(process.env.NEXT_PUBLIC_RITUAL_RPC_URL),
-      http("https://rpc.ritualfoundation.org"),
-    ]),
+    [ritualChain.id]: http(walletRpc),
   },
   ssr: true,
 });

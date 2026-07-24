@@ -195,3 +195,217 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
   .issue-grid { grid-template-columns: repeat(2, 1fr); }
   h1 { font-size: 28px; }
 }
+
+/* Focused audit workspace */
+.simple-app {
+  min-height: 100vh;
+  background: var(--bg);
+}
+.simple-topbar {
+  width: min(1120px, calc(100% - 40px));
+  height: 72px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.simple-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.simple-brand strong,
+.simple-brand small {
+  display: block;
+}
+.simple-brand strong {
+  font-size: 15px;
+}
+.simple-brand small {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 2px;
+}
+.simple-brand-mark {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: #06130e;
+  background: var(--green);
+  border-radius: 9px;
+}
+.wallet-connect {
+  min-height: 38px;
+  padding: 0 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text);
+  background: #111820;
+  border: 1px solid #344552;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 12px;
+}
+.wallet-connect:hover {
+  border-color: var(--green);
+}
+.wallet-warning {
+  color: #f7cf84;
+  border-color: rgba(245,184,75,.4);
+}
+.wallet-connected {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+.simple-main {
+  width: min(920px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 74px 0 100px;
+}
+.audit-home {
+  display: grid;
+  gap: 28px;
+}
+.audit-intro {
+  max-width: 620px;
+}
+.audit-intro h1 {
+  max-width: 560px;
+  margin: 12px 0 10px;
+  font-size: 56px;
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+.audit-intro p {
+  margin: 0;
+  font-size: 17px;
+}
+.audit-editor {
+  overflow: hidden;
+  background: rgba(17,23,30,.96);
+  border: 1px solid #344552;
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.28), 0 0 0 1px rgba(53,224,161,.04);
+}
+.editor-toolbar,
+.editor-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 54px;
+  padding: 0 18px;
+}
+.editor-toolbar {
+  border-bottom: 1px solid var(--border-soft);
+}
+.editor-dots {
+  display: flex;
+  gap: 6px;
+  margin-right: auto;
+}
+.editor-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #465662;
+}
+.editor-toolbar select {
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 12px;
+}
+.editor-count {
+  color: #657782;
+  font: 11px var(--font-mono);
+}
+.editor-toolbar .error {
+  color: var(--red);
+}
+.audit-editor textarea {
+  display: block;
+  width: 100%;
+  min-height: 390px;
+  padding: 26px 24px;
+  resize: vertical;
+  color: #dce9e7;
+  background: #0b1116;
+  border: 0;
+  outline: 0;
+  font: 13px/1.75 var(--font-mono);
+}
+.audit-editor textarea::placeholder {
+  color: #536570;
+}
+.editor-footer {
+  justify-content: space-between;
+  border-top: 1px solid var(--border-soft);
+}
+.editor-footer p {
+  margin: 0;
+  font-size: 12px;
+}
+.audit-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  color: #06130e;
+  background: var(--green);
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+}
+.audit-button:hover {
+  background: #69edbd;
+}
+.audit-button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+.audit-error {
+  padding: 12px 18px;
+  color: #ffb0ab;
+  background: rgba(239,91,91,.08);
+  border-top: 1px solid rgba(239,91,91,.2);
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .simple-topbar,
+  .simple-main {
+    width: min(100% - 28px, 920px);
+  }
+  .simple-main {
+    padding-top: 52px;
+  }
+  .simple-brand small {
+    display: none;
+  }
+  .wallet-connect {
+    min-height: 36px;
+    padding: 0 10px;
+  }
+  .audit-intro h1 {
+    font-size: 40px;
+  }
+  .audit-editor textarea {
+    min-height: 320px;
+    padding: 20px 16px;
+  }
+  .editor-footer {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 14px 16px 16px;
+  }
+  .audit-button {
+    justify-content: center;
+  }
+}
