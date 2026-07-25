@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRight, LoaderCircle } from "lucide-react";
+import { ArrowRight, LoaderCircle, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   decodeEventLog,
   encodeFunctionData,
@@ -34,6 +34,24 @@ const languages = [
   ["cpp", "C / C++"],
 ] as const;
 
+const extensionLanguages: Record<string, string> = {
+  sol: "solidity",
+  ts: "typescript",
+  tsx: "typescript",
+  js: "javascript",
+  jsx: "javascript",
+  py: "python",
+  rs: "rust",
+  go: "go",
+  java: "java",
+  cs: "csharp",
+  c: "cpp",
+  cc: "cpp",
+  cpp: "cpp",
+  h: "cpp",
+  hpp: "cpp",
+};
+
 type AuditState = "idle" | "wallet" | "sending" | "auditing";
 
 export function ReviewComposer() {
@@ -41,6 +59,7 @@ export function ReviewComposer() {
   const [source, setSource] = useState("");
   const [state, setState] = useState<AuditState>("idle");
   const [error, setError] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { address, chainId, isConnected } = useAccount();
   const publicClient = usePublicClient();
@@ -75,6 +94,14 @@ export function ReviewComposer() {
     Boolean(executors?.llm) &&
     !pendingJob &&
     !busy;
+
+  async function loadFile(file?: File) {
+    if (!file) return;
+    const extension = file.name.split(".").pop()?.toLowerCase() || "";
+    setLanguage(extensionLanguages[extension] || "auto");
+    setSource(await file.text());
+    setError("");
+  }
 
   async function submit() {
     if (!address || !publicClient || !executors?.llm) return;
@@ -160,11 +187,22 @@ export function ReviewComposer() {
   return (
     <section className="audit-editor" aria-label="Code audit editor">
       <div className="editor-toolbar">
-        <div className="editor-dots" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
+        <button
+          className="upload-button"
+          type="button"
+          title="Upload code file"
+          aria-label="Upload code file"
+          onClick={() => fileInput.current?.click()}
+        >
+          <Upload size={15} />
+        </button>
+        <input
+          ref={fileInput}
+          className="hidden-file-input"
+          type="file"
+          accept=".sol,.ts,.tsx,.js,.jsx,.py,.rs,.go,.java,.cs,.c,.cc,.cpp,.h,.hpp,.txt"
+          onChange={(event) => void loadFile(event.target.files?.[0])}
+        />
         <select
           aria-label="Programming language"
           value={language}
