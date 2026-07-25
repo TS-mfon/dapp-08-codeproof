@@ -19,6 +19,8 @@ export const registryAbi = parseAbi([
   "function setFees(uint256 fastFee,uint256 deepFee)",
   "function setPassingScoreThreshold(uint16 threshold)",
   "event ReviewRequested(uint256 indexed id,uint32 indexed version,address indexed owner,uint8 mode,bytes32 sourceHash,string sourceURI,bool provenanceVerified)",
+  "event ReviewStatusUpdated(uint256 indexed id,uint32 indexed version,uint8 status,string reason)",
+  "event ReviewCommitted(uint256 indexed id,uint32 indexed version,uint16 score,bytes32 reportHash,string reportURI,(uint16 critical,uint16 high,uint16 medium,uint16 low,uint16 gas) issues)",
 ]);
 
 export const ritualWalletAbi = parseAbi([

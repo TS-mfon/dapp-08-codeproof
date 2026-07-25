@@ -14,6 +14,9 @@
   --pink: #ee77c4;
   --gold: #f5b84b;
   --red: #ef5b5b;
+  --ritual-red: #d54452;
+  --ritual-red-bright: #f05a67;
+  --ritual-gold: #d5b16d;
 }
 
 * { box-sizing: border-box; }
@@ -32,7 +35,7 @@ body {
 button, input, textarea, select { font: inherit; letter-spacing: 0; }
 a { color: inherit; text-decoration: none; }
 button, a, input, textarea, select { outline: none; }
-:focus-visible { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--green); }
+:focus-visible { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ritual-red); }
 
 .app-frame { min-height: 100vh; display: grid; grid-template-columns: 232px 1fr; }
 .sidebar {
@@ -201,6 +204,7 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
   min-height: 100vh;
   background: var(--bg);
 }
+.simple-app .eyebrow { color: var(--ritual-gold); }
 .simple-topbar {
   width: min(1120px, calc(100% - 40px));
   height: 72px;
@@ -231,8 +235,8 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
   height: 34px;
   display: grid;
   place-items: center;
-  color: #06130e;
-  background: var(--green);
+  color: #14090a;
+  background: var(--ritual-red);
   border-radius: 9px;
 }
 .wallet-connect {
@@ -250,7 +254,7 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
   font-size: 12px;
 }
 .wallet-connect:hover {
-  border-color: var(--green);
+  border-color: var(--ritual-red);
 }
 .wallet-warning {
   color: #f7cf84;
@@ -278,6 +282,8 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
   font-size: 56px;
   line-height: 1.02;
   letter-spacing: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 500;
 }
 .audit-intro p {
   margin: 0;
@@ -286,9 +292,9 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
 .audit-editor {
   overflow: hidden;
   background: rgba(17,23,30,.96);
-  border: 1px solid #344552;
-  border-radius: 14px;
-  box-shadow: 0 24px 80px rgba(0,0,0,.28), 0 0 0 1px rgba(53,224,161,.04);
+  border: 1px solid #493036;
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.35), 0 0 0 1px rgba(213,68,82,.05);
 }
 .editor-toolbar,
 .editor-footer {
@@ -314,8 +320,8 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
   cursor: pointer;
 }
 .upload-button:hover {
-  color: var(--green);
-  border-color: var(--green);
+  color: var(--ritual-gold);
+  border-color: var(--ritual-gold);
 }
 .hidden-file-input { display: none; }
 .editor-toolbar select {
@@ -361,8 +367,8 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
   gap: 8px;
   min-height: 40px;
   padding: 0 16px;
-  color: #06130e;
-  background: var(--green);
+  color: #16090b;
+  background: var(--ritual-red);
   border: 0;
   border-radius: 8px;
   cursor: pointer;
@@ -370,7 +376,7 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
   font-size: 13px;
 }
 .audit-button:hover {
-  background: #69edbd;
+  background: var(--ritual-red-bright);
 }
 .audit-button:disabled {
   cursor: not-allowed;
@@ -410,7 +416,7 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
   font-size: 12px;
   font-weight: 700;
 }
-.back-button:hover { border-color: var(--green); }
+.back-button:hover { border-color: var(--ritual-red); }
 .result-summary {
   display: grid;
   grid-template-columns: 150px 1fr;
@@ -434,7 +440,7 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
   border-right: 1px solid var(--border-soft);
 }
 .result-score strong {
-  color: var(--green);
+  color: var(--ritual-gold);
   font: 700 42px var(--font-mono);
 }
 .result-score span {
@@ -491,6 +497,83 @@ textarea.input { min-height: 220px; resize: vertical; font: 12px/1.6 var(--font-
   justify-items: center;
   gap: 12px;
   color: var(--muted);
+}
+.ritual-stage {
+  min-height: 68vh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+}
+.ritual-stage h1 {
+  max-width: 650px;
+  margin: 4px 0 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 42px;
+  font-weight: 500;
+}
+.ritual-stage p {
+  max-width: 580px;
+  margin: 0;
+}
+.ritual-loader {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  margin-bottom: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--ritual-red);
+  border: 1px solid rgba(213,68,82,.45);
+  border-radius: 50%;
+}
+.ritual-loader::before,
+.ritual-loader::after {
+  content: "";
+  position: absolute;
+  border: 1px solid rgba(213,177,109,.28);
+  transform: rotate(45deg);
+}
+.ritual-loader::before {
+  inset: 20px;
+}
+.ritual-loader::after {
+  inset: 39px;
+}
+.outer-glyph {
+  width: 112px;
+  height: 112px;
+  animation: spin 7s linear infinite;
+}
+.inner-glyph {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  color: var(--ritual-gold);
+}
+.transaction-rune {
+  margin-top: 14px;
+  color: #806f72;
+  font: 11px var(--font-mono);
+}
+.ritual-failed .eyebrow { color: var(--red); }
+.failure-mark {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 10px;
+  display: grid;
+  place-items: center;
+  color: #ff9a94;
+  border: 1px solid rgba(239,91,91,.45);
+  transform: rotate(45deg);
+}
+.failure-mark svg { transform: rotate(-45deg); }
+.ritual-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 @media (max-width: 720px) {

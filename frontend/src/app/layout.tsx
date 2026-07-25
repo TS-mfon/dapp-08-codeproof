@@ -4,9 +4,9 @@ import { Providers } from "./providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CodeProof",
+  title: "Ritual Code Auditor",
   description:
-    "Multi-language AI code security audits and certificates on Ritual Chain.",
+    "Multi-language code security audits powered by Ritual LLM.",
 };
 
 export default function RootLayout({

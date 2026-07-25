@@ -4,7 +4,6 @@ import { ArrowRight, LoaderCircle, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import {
-  decodeEventLog,
   encodeFunctionData,
   parseEther,
   parseGwei,
@@ -12,7 +11,6 @@ import {
 } from "viem";
 import {
   useAccount,
-  usePublicClient,
   useReadContract,
   useSendTransaction,
   useSwitchChain,
@@ -62,7 +60,6 @@ export function ReviewComposer() {
   const fileInput = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { address, chainId, isConnected } = useAccount();
-  const publicClient = usePublicClient();
   const { switchChainAsync } = useSwitchChain();
   const { data: executors } = useExecutors();
   const { sendTransactionAsync } = useSendTransaction();
@@ -104,7 +101,7 @@ export function ReviewComposer() {
   }
 
   async function submit() {
-    if (!address || !publicClient || !executors?.llm) return;
+    if (!address || !executors?.llm) return;
     setError("");
     try {
       if (chainId !== ritualChain.id) {
@@ -137,28 +134,7 @@ export function ReviewComposer() {
       });
 
       setState("auditing");
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      let reviewId: string | undefined;
-      for (const log of receipt.logs) {
-        if (log.address.toLowerCase() !== addresses.registry.toLowerCase()) {
-          continue;
-        }
-        try {
-          const decoded = decodeEventLog({
-            abi: registryAbi,
-            data: log.data,
-            topics: log.topics,
-          });
-          if (decoded.eventName === "ReviewRequested") {
-            reviewId = String(decoded.args.id);
-          }
-        } catch {
-          // The fulfilled receipt contains several registry events.
-        }
-      }
-
-      if (!reviewId) throw new Error("The audit completed without a review ID.");
-      router.push(`/result/${reviewId}`);
+      router.push(`/audit/${hash}`);
     } catch (cause) {
       const detail =
         cause instanceof Error ? cause.message : "The audit could not be submitted.";

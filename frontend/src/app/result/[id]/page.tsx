@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, FileJson2, LoaderCircle } from "lucide-react";
+import { ArrowLeft, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAccount, useReadContract } from "wagmi";
@@ -22,12 +22,14 @@ export default function ResultPage() {
     abi: registryAbi,
     functionName: "getReview",
     args: [reviewId],
+    query: { refetchInterval: 2_500 },
   });
   const versionQuery = useReadContract({
     address: addresses.registry,
     abi: registryAbi,
     functionName: "getVersion",
     args: [reviewId, 1],
+    query: { refetchInterval: 2_500 },
   });
   const reportQuery = useReadContract({
     address: addresses.registry,
@@ -59,8 +61,8 @@ export default function ResultPage() {
   if (!review || !version || review.owner === addresses.zero) {
     return (
       <div className="result-state">
-        <FileJson2 />
-        Audit #{params.id} was not found.
+        <LoaderCircle className="spin" />
+        Waiting for audit #{params.id}...
       </div>
     );
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheck } from "lucide-react";
+import { CircleDotDashed } from "lucide-react";
 import { WalletButton } from "./wallet-button";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -9,11 +9,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="simple-topbar">
         <div className="simple-brand">
           <span className="simple-brand-mark">
-            <ShieldCheck size={18} />
+            <CircleDotDashed size={19} />
           </span>
           <span>
-            <strong>CodeProof</strong>
-            <small>Ritual LLM code audits</small>
+            <strong>Ritual Code Auditor</strong>
+            <small>An invocation on Ritual Chain</small>
           </span>
         </div>
         <WalletButton />

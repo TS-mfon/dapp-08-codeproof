@@ -4,9 +4,9 @@ export default function Dashboard() {
   return (
     <section className="audit-home">
       <div className="audit-intro">
-        <span className="eyebrow">Ritual LLM</span>
-        <h1>Find what your code missed.</h1>
-        <p>Paste code. Get a focused security audit in seconds.</p>
+        <span className="eyebrow">Enter the circle</span>
+        <h1>Bring your code before the ritual.</h1>
+        <p>Paste or upload a source file. The LLM will return its findings.</p>
       </div>
       <ReviewComposer />
     </section>
