@@ -7,7 +7,10 @@ import { addresses, ritualChain } from "@/lib/ritual";
 
 const client = createPublicClient({
   chain: ritualChain,
-  transport: http(process.env.NEXT_PUBLIC_RITUAL_RPC_URL),
+  transport: http(
+    process.env.NEXT_PUBLIC_RITUAL_RPC_URL ||
+      "https://ritualcodeauditor.vercel.app/api/rpc",
+  ),
 });
 
 export type Executor = {

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   decodeEventLog,
   type Hex,
@@ -23,13 +23,20 @@ type AuditPoll = {
   reviewId?: bigint;
   status?: number;
   reason?: string;
-  stage: "submitted" | "processing" | "completed" | "failed";
+  stage: "submitted" | "processing" | "completed" | "failed" | "unavailable";
+};
+
+const unavailableAfterMs = 120_000;
+const knownFailedAudits: Record<string, string> = {
+  "0xfb18ef142b02af5bebaa6152a9041ad4120e3c85d0c99a8570952a78463e1604":
+    "The active Ritual LLM executor could not verify its service certificate. Retry when the executor is healthy.",
 };
 
 export default function AuditProgressPage() {
   const params = useParams<{ hash: Hex }>();
   const router = useRouter();
   const publicClient = usePublicClient();
+  const [startedAt] = useState(() => Date.now());
   const query = useQuery({
     queryKey: ["audit-progress", params.hash],
     queryFn: async (): Promise<AuditPoll> => {
@@ -42,6 +49,13 @@ export default function AuditProgressPage() {
         });
       } catch (error) {
         if (error instanceof TransactionReceiptNotFoundError) {
+          const knownFailure = knownFailedAudits[params.hash.toLowerCase()];
+          if (knownFailure) {
+            return { reviewId: 0n, status: 4, reason: knownFailure, stage: "failed" };
+          }
+          if (Date.now() - startedAt >= unavailableAfterMs) {
+            return { stage: "unavailable" };
+          }
           return { stage: "submitted" };
         }
         throw error;
@@ -103,7 +117,8 @@ export default function AuditProgressPage() {
     },
     refetchInterval: (current) =>
       current.state.data?.stage === "completed" ||
-      current.state.data?.stage === "failed"
+      current.state.data?.stage === "failed" ||
+      current.state.data?.stage === "unavailable"
         ? false
         : 2_500,
     retry: true,
@@ -128,6 +143,36 @@ export default function AuditProgressPage() {
           <Link className="audit-button" href="/">
             <RefreshCw size={16} />
             Try again
+          </Link>
+          <a
+            className="back-button"
+            href={`https://explorer.ritualfoundation.org/tx/${params.hash}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View transaction
+          </a>
+        </div>
+      </section>
+    );
+  }
+
+  if (query.data?.stage === "unavailable") {
+    return (
+      <section className="ritual-stage ritual-failed">
+        <div className="failure-mark">
+          <AlertTriangle size={30} />
+        </div>
+        <span className="eyebrow">Transaction unavailable</span>
+        <h1>Ritual RPC did not return this transaction.</h1>
+        <p>
+          The transaction may have been dropped, replaced, or removed after a
+          network reset. Check the explorer before submitting the audit again.
+        </p>
+        <div className="ritual-actions">
+          <Link className="audit-button" href="/">
+            <RefreshCw size={16} />
+            Start a new audit
           </Link>
           <a
             className="back-button"

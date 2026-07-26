@@ -3,7 +3,7 @@ import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 
 const walletRpc =
   process.env.NEXT_PUBLIC_RITUAL_WALLET_RPC_URL ||
-  "https://frontend-alpha-pied-17.vercel.app/api/rpc";
+  "https://ritualcodeauditor.vercel.app/api/rpc";
 
 export const ritualChain = defineChain({
   id: 1979,
@@ -29,9 +29,9 @@ export const ritualChain = defineChain({
 });
 
 export const wagmiConfig = getDefaultConfig({
-  appName: "CodeProof",
+  appName: "Ritual Code Auditor",
   appDescription: "Simple multi-language code audits powered by Ritual LLM",
-  appUrl: "https://frontend-alpha-pied-17.vercel.app",
+  appUrl: "https://ritualcodeauditor.vercel.app",
   projectId:
     process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "YOUR_PROJECT_ID",
   chains: [ritualChain],
@@ -44,9 +44,9 @@ export const wagmiConfig = getDefaultConfig({
 export const addresses = {
   zero: "0x0000000000000000000000000000000000000000" as `0x${string}`,
   registry: (process.env.NEXT_PUBLIC_REGISTRY_ADDRESS ||
-    "0x0000000000000000000000000000000000000000") as `0x${string}`,
+    "0x4664edf2F8a8FAaBE63235132aBCAF9bCF88e164") as `0x${string}`,
   certificate: (process.env.NEXT_PUBLIC_CERTIFICATE_ADDRESS ||
-    "0x0000000000000000000000000000000000000000") as `0x${string}`,
+    "0x8864ad5224738db9C8807B2796476a5cfF960Fc8") as `0x${string}`,
   ritualWallet:
     "0x532F0dF0896F353d8C3DD8cc134e8129DA2a3948" as `0x${string}`,
   asyncJobTracker:
