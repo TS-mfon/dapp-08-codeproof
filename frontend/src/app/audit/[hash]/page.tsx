@@ -10,11 +10,7 @@ import {
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  decodeEventLog,
-  type Hex,
-  TransactionReceiptNotFoundError,
-} from "viem";
+import { decodeEventLog, type Hex } from "viem";
 import { usePublicClient } from "wagmi";
 import { registryAbi } from "@/lib/abi";
 import { addresses } from "@/lib/ritual";
@@ -24,6 +20,14 @@ type AuditPoll = {
   status?: number;
   reason?: string;
   stage: "submitted" | "processing" | "completed" | "failed" | "unavailable";
+};
+
+type RpcReceipt = {
+  logs: Array<{
+    address: string;
+    data: Hex;
+    topics: [Hex, ...Hex[]];
+  }>;
 };
 
 const unavailableAfterMs = 120_000;
@@ -42,23 +46,37 @@ export default function AuditProgressPage() {
     queryFn: async (): Promise<AuditPoll> => {
       if (!publicClient) return { stage: "submitted" };
 
-      let receipt;
-      try {
-        receipt = await publicClient.getTransactionReceipt({
-          hash: params.hash,
-        });
-      } catch (error) {
-        if (error instanceof TransactionReceiptNotFoundError) {
-          const knownFailure = knownFailedAudits[params.hash.toLowerCase()];
-          if (knownFailure) {
-            return { reviewId: 0n, status: 4, reason: knownFailure, stage: "failed" };
-          }
-          if (Date.now() - startedAt >= unavailableAfterMs) {
-            return { stage: "unavailable" };
-          }
-          return { stage: "submitted" };
+      const response = await fetch("/api/rpc", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "eth_getTransactionReceipt",
+          params: [params.hash],
+        }),
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error(`Ritual RPC returned HTTP ${response.status}.`);
+      }
+      const payload = (await response.json()) as {
+        result: RpcReceipt | null;
+        error?: { message?: string };
+      };
+      if (payload.error) {
+        throw new Error(payload.error.message || "Ritual RPC request failed.");
+      }
+      const receipt = payload.result;
+      if (!receipt) {
+        const knownFailure = knownFailedAudits[params.hash.toLowerCase()];
+        if (knownFailure) {
+          return { reviewId: 0n, status: 4, reason: knownFailure, stage: "failed" };
         }
-        throw error;
+        if (Date.now() - startedAt >= unavailableAfterMs) {
+          return { stage: "unavailable" };
+        }
+        return { stage: "submitted" };
       }
 
       let reviewId: bigint | undefined;
@@ -92,6 +110,22 @@ export default function AuditProgressPage() {
 
       if (reviewId === undefined) {
         return { stage: "processing" };
+      }
+
+      if (receiptStatus === 3) {
+        return { reviewId, status: receiptStatus, stage: "completed" };
+      }
+      if (
+        receiptStatus === 4 ||
+        receiptStatus === 5 ||
+        receiptStatus === 6
+      ) {
+        return {
+          reviewId,
+          status: receiptStatus,
+          reason: reason || "The Ritual LLM executor could not complete this audit.",
+          stage: "failed",
+        };
       }
 
       const review = await publicClient.readContract({
@@ -153,6 +187,31 @@ export default function AuditProgressPage() {
             View transaction
           </a>
         </div>
+      </section>
+    );
+  }
+
+  if (query.isError) {
+    return (
+      <section className="ritual-stage ritual-failed">
+        <div className="failure-mark">
+          <AlertTriangle size={30} />
+        </div>
+        <span className="eyebrow">Polling failed</span>
+        <h1>The audit status could not be read.</h1>
+        <p>
+          {query.error instanceof Error
+            ? query.error.message
+            : "Ritual RPC did not return a usable response."}
+        </p>
+        <button
+          className="audit-button"
+          type="button"
+          onClick={() => void query.refetch()}
+        >
+          <RefreshCw size={16} />
+          Retry status check
+        </button>
       </section>
     );
   }
