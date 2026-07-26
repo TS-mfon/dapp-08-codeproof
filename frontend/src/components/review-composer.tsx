@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight, LoaderCircle, Upload } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -63,6 +64,21 @@ export function ReviewComposer() {
   const { switchChainAsync } = useSwitchChain();
   const { data: executors } = useExecutors();
   const { sendTransactionAsync } = useSendTransaction();
+  const executorHealth = useQuery({
+    queryKey: ["ritual-llm-health"],
+    queryFn: async () => {
+      const response = await fetch("/api/executor-health", {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Executor health check failed.");
+      return (await response.json()) as {
+        healthy: boolean;
+        reason: string;
+      };
+    },
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
 
   const { data: fee } = useReadContract({
     address: addresses.registry,
@@ -89,6 +105,7 @@ export function ReviewComposer() {
     sourceBytes > 0 &&
     sourceBytes <= 12_000 &&
     Boolean(executors?.llm) &&
+    executorHealth.data?.healthy === true &&
     !pendingJob &&
     !busy;
 
@@ -104,6 +121,14 @@ export function ReviewComposer() {
     if (!address || !executors?.llm) return;
     setError("");
     try {
+      const health = await executorHealth.refetch();
+      if (!health.data?.healthy) {
+        throw new Error(
+          health.data?.reason ||
+            "Ritual's LLM executor is temporarily unavailable.",
+        );
+      }
+
       if (chainId !== ritualChain.id) {
         setState("wallet");
         await switchChainAsync({ chainId: ritualChain.id });
@@ -207,6 +232,8 @@ export function ReviewComposer() {
         <p>
           {!isConnected
             ? "Connect a wallet to run an audit."
+            : executorHealth.data?.healthy === false
+              ? "Ritual LLM is temporarily unavailable. No transaction will be submitted."
             : pendingJob
               ? "This wallet already has an audit in progress."
               : "The result is stored on Ritual Chain."}
